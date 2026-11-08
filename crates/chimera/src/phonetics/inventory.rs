@@ -221,6 +221,9 @@ fn base() -> Vec<PhonemeDef> {
         c("ɻ", "retroflex approximant", M::Approximant, Voiced, "retroflex", t(&[(TtX, 5.4), (TtY, 9.55), (TtCurl, 1.0)]), TIP_CURL, 0.065),
         c("j", "palatal approximant", M::Approximant, Voiced, "palatal", t(&[(TbX, 3.8), (TbY, 7.95), (Jaw, 0.25)]), &BODY, 0.055),
         c("ɰ", "velar approximant", M::Approximant, Voiced, "velar", t(&[(TbX, 2.35), (TbY, 7.45)]), &BODY, 0.06),
+        // Japanese ん before a vowel, glide or fricative and at the end: the back of the tongue
+        // rises toward the soft palate without touching it, and the velum lowers (a nasal vowel)
+        c("ɰ̃", "nasalized velar approximant", M::Approximant, Voiced, "velar", t(&[(TbX, 2.35), (TbY, 7.45)]), &BODY, 0.08).nasal(),
         c("l", "alveolar lateral approximant", M::Lateral, Voiced, "alveolar", tg(ALV_STOP, &[(Lateral, 1.0)]), &[TtX, TtY, Lateral], 0.065),
         c("ɫ", "velarised lateral", M::Lateral, Voiced, "alveolar", tg(ALV_STOP, &[(Lateral, 1.0), (TbX, 1.9), (TbY, 6.8)]), &[TtX, TtY, Lateral, TbX, TbY], 0.075),
         c("ɭ", "retroflex lateral", M::Lateral, Voiced, "retroflex", tg(RETRO_STOP, &[(Lateral, 1.0)]), &[TtX, TtY, TtCurl, Lateral], 0.065),

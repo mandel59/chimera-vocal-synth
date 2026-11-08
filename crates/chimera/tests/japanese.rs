@@ -44,6 +44,17 @@ fn moraic_nasal_takes_the_next_place() {
     assert_eq!(show("かんだ"), "か:k.a. ん:.n. だ:d.a.");
     assert_eq!(show("りんご"), "り:ɾ.i. ん:.ŋ. ご:g.o.");
     assert_eq!(show("ほん"), "ほ:h.o. ん:.ɴ.");
+    // a fricative, glide or vowel after it: no closure (the sung hum here)
+    assert_eq!(show("あんしん"), "あ:.a. ん:.ɴ. し:ɕ.i. ん:.ɴ.");
+    assert_eq!(show("でんわ"), "で:d.e. ん:.ɴ. わ:w.a.");
+}
+
+#[test]
+fn spoken_n_without_a_closure_is_a_nasal_vowel() {
+    // asked 2026-11-09: the ん of かもしれません should be a nasal vowel, not a closed [ɴ]
+    assert_eq!(spoken("せん。"), "s e ɰ̃");
+    assert_eq!(spoken("たんい"), "t a ɰ̃ i");
+    assert_eq!(spoken("さんぽ"), "s a m p o");
 }
 
 #[test]
