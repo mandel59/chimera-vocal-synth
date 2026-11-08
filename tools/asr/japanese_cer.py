@@ -3,13 +3,14 @@ eighth note on a near-monotone line with `chimera render notes` in the male and 
 transcribe it in Japanese with faster-whisper (multilingual small, greedy, so the same audio gives
 the same text), read the transcript back into hiragana (pykakasi) and count character errors.
 
-usage: japanese_cer.py <outdir> [--against earlier/cer.json] [--chimera path/to/chimera]
+usage: japanese_cer.py <outdir> [--against earlier/cer.json] [--chimera path/to/chimera] [--speech]
 
 Writes <outdir>/cer.json and the renders. With --against it compares the training sentences'
 character error rate (both bodies together): BETTER if it fell by at least MARGIN points, WORSE if
 it rose by more than SLACK, and NO CLEAR CHANGE between. The held-out sentences are reported but
 never decide, and their transcripts aren't printed: a tuning loop must not listen to them.
 --chimera renders with another build (default target/release/chimera), to measure a baseline.
+--speech reads the sentences with `chimera render text` instead of singing them.
 
 A sentence's errors count at most its length: greedy Whisper sometimes loops on one character
 ("ぬぅぅぅ…") and would otherwise swamp every other sentence.
@@ -93,6 +94,9 @@ def main():
         i = args.index("--chimera")
         chimera = os.path.abspath(args[i + 1])
         del args[i : i + 2]
+    speech = "--speech" in args
+    if speech:
+        args.remove("--speech")
     out = args[0]
     os.makedirs(out, exist_ok=True)
     sentences = [line.rstrip("\n").split("\t") for line in open(os.path.join(HERE, "japanese_sentences.tsv")) if line.strip()]
@@ -101,6 +105,9 @@ def main():
 
     def render(job):
         _, _, text, body, stem = job
+        if speech:
+            subprocess.run([chimera, "render", "text", stem, text + "。", body], check=True, capture_output=True)
+            return
         with open(stem + ".json", "w") as f:
             json.dump(melody(text), f, ensure_ascii=False)
         subprocess.run([chimera, "render", "notes", stem + ".json", stem, body], check=True, capture_output=True)
