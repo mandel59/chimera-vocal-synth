@@ -85,7 +85,7 @@ fn the_p_of_sharp_does_not_pop() {
     let inputs: Vec<PhraseInput> = g
         .to_phrases("A cold paper walks under the sharp tree.")
         .into_iter()
-        .map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate })
+        .map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register })
         .collect();
     for (body, name, f0) in VOICES {
         let plan = plan_phrases(&inputs, &options(name, f0));
@@ -134,7 +134,7 @@ fn an_f_does_not_click() {
     let inputs: Vec<PhraseInput> = g
         .to_phrases("Four hours of steady work faced us.")
         .into_iter()
-        .map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate })
+        .map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register })
         .collect();
     let mut loud = vec![];
     for (body, name, f0) in VOICES {

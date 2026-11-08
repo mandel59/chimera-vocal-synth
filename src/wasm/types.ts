@@ -181,6 +181,8 @@ export interface Phrase {
   words: string[];
   /** the language's tempo on top of the speaker's rate (absent: 1) */
   rate?: number;
+  /** the language's speaking pitch in semitones for a male and a female speaker (absent: 0) */
+  register?: [number, number];
 }
 
 export interface Syllable {

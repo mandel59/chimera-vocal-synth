@@ -10,7 +10,7 @@ use super::inventory::{Glottal, Manner, PhonemeDef, Voicing, phoneme};
 use super::{Intonation, Plan, PlannedSegment, Segment};
 use crate::anatomy::human::{ArticKey, ArticPatch, BodyMix, BodyName};
 use crate::control::score::{ControlKey, Gesture, Targets};
-use crate::math::{js_max, js_min, js_round};
+use crate::math::{js_max, js_min, js_round, pow};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
@@ -522,6 +522,9 @@ pub struct PhraseInput {
     /// the language's tempo, multiplying `PlanOptions::rate` (see `Phrase::rate`)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rate: Option<f64>,
+    /// the language's speaking pitch, semitones for male and female (see `Phrase::register`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub register: Option<[f64; 2]>,
 }
 
 /// Plan consecutive phrases (each with its own breath group and intonation) from t0.
@@ -531,7 +534,9 @@ pub fn plan_phrases(phrases: &[PhraseInput], o: &PlanOptions) -> Plan {
     let mut t = o.t0;
     for p in phrases {
         let rate = p.rate.map_or(o.rate, |r| Some(o.rate.unwrap_or(1.0) * r));
-        let plan = plan_utterance(&p.segments, &PlanOptions { t0: t, intonation: Some(p.intonation.unwrap_or(Intonation::Statement)), rate, ..o.clone() });
+        // the language's register: its male and female offsets, blended by the body
+        let f0 = p.register.map_or(o.f0, |[m, f]| Some(o.f0.unwrap_or(110.0) * pow(2.0, (m + (f - m) * o.body.female) / 12.0)));
+        let plan = plan_utterance(&p.segments, &PlanOptions { t0: t, intonation: Some(p.intonation.unwrap_or(Intonation::Statement)), rate, f0, ..o.clone() });
         all.gestures.extend_from_slice(&plan.gestures);
         all.segments.extend(plan.segments);
         t = plan.end + p.pause.unwrap_or(0.25);

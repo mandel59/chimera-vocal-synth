@@ -94,6 +94,11 @@ pub struct Phrase {
     /// 1× is a natural pace in every language (English: none, 1)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rate: Option<f64>,
+    /// the language's speaking pitch against the voice's, in semitones for a male and a female
+    /// speaker (bodies in between blend them): languages set the sexes apart by different amounts
+    /// (English: none, 0)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub register: Option<[f64; 2]>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -169,7 +174,7 @@ impl EnglishG2P {
             };
             words.clear();
             if !segs.is_empty() {
-                phrases.push(Phrase { segments: segs, intonation: if q { Intonation::Question } else { Intonation::Statement }, pause, words: said, rate: None });
+                phrases.push(Phrase { segments: segs, intonation: if q { Intonation::Question } else { Intonation::Statement }, pause, words: said, rate: None, register: None });
             }
         };
         for part in &parts {

@@ -148,14 +148,13 @@ fn english_text_is_still_english() {
 
 // ---------------------------------------------------------------- pitch accent
 
-/// "H"/"L" per spoken mora (each vowel or ん), compared to the phrase's first word's middle
+/// "H"/"L" per spoken mora (each vowel or ん): above or below halfway between the phrase's
+/// highest and lowest pitch
 fn accents(text: &str) -> String {
     let p = &EnglishG2P::new().to_phrases(text)[0];
-    p.segments
-        .iter()
-        .filter_map(|s| s.pitch)
-        .map(|x| if x > 1.0 { 'H' } else { 'L' })
-        .collect()
+    let pitch: Vec<f64> = p.segments.iter().filter_map(|s| s.pitch).collect();
+    let mid = (pitch.iter().cloned().fold(f64::MIN, f64::max) + pitch.iter().cloned().fold(f64::MAX, f64::min)) / 2.0;
+    pitch.iter().map(|x| if *x > mid { 'H' } else { 'L' }).collect()
 }
 
 #[test]
@@ -208,7 +207,7 @@ use chimera::voice::human_voice::{HumanVoice, SourcePatch};
 const FS: f64 = 48000.0;
 
 fn speak(text: &str, body: HumanBody, name: &str, f0: f64) -> (chimera::phonetics::Plan, Vec<f32>) {
-    let inputs: Vec<PhraseInput> = EnglishG2P::new().to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate }).collect();
+    let inputs: Vec<PhraseInput> = EnglishG2P::new().to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register }).collect();
     let plan = plan_phrases(&inputs, &chimera::phonetics::planner::PlanOptions { body: name.into(), t0: 0.05, f0: Some(f0), ..Default::default() });
     let mut v = HumanVoice::new(FS, body, 2);
     v.set_source(&SourcePatch::f0(f0));
@@ -303,7 +302,7 @@ fn ru_is_a_tap_not_a_stop() {
 
 /// Morae per second of a spoken sentence at 1× (each vowel, ん and っ is a mora; a ー adds one).
 fn morae_per_second(text: &str) -> f64 {
-    let inputs: Vec<PhraseInput> = EnglishG2P::new().to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate }).collect();
+    let inputs: Vec<PhraseInput> = EnglishG2P::new().to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register }).collect();
     let morae = text.chars().filter(|c| chimera::phonetics::japanese::is_kana(*c) && !"ゃゅょぁぃぅぇぉゎ".contains(*c)).count();
     let plan = plan_phrases(&inputs, &chimera::phonetics::planner::PlanOptions { body: "female".into(), t0: 0.0, f0: Some(200.0), ..Default::default() });
     let speech: f64 = plan.segments.iter().map(|s| s.t1 - s.t0).sum();
@@ -326,7 +325,7 @@ fn english_with_dictionary() -> &'static EnglishG2P {
 
 /// Seconds from the first sound to the last at 1×, pauses between phrases included.
 fn spoken_length(g: &EnglishG2P, text: &str) -> f64 {
-    let inputs: Vec<PhraseInput> = g.to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate }).collect();
+    let inputs: Vec<PhraseInput> = g.to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register }).collect();
     let plan = plan_phrases(&inputs, &chimera::phonetics::planner::PlanOptions { body: "female".into(), t0: 0.0, f0: Some(200.0), ..Default::default() });
     plan.segments.last().unwrap().t1 - plan.segments[0].t0
 }
@@ -367,4 +366,74 @@ fn kyo_has_an_audible_burst() {
     println!("{kyo:?}");
     assert_eq!(kyo.len(), 2, "one per voice");
     assert!(kyo.iter().all(|(_, e)| *e > 0.0), "{kyo:?}");
+}
+
+#[test]
+fn japanese_is_spoken_in_its_own_register() {
+    // asked 2026-11-09: Japanese and English are spoken at different average pitches. Japanese
+    // sets the sexes further apart: men a little lower, women a little higher.
+    use chimera::control::score::ControlKey;
+    let first_f0 = |inputs: &[PhraseInput], body: &str| {
+        let plan = plan_phrases(inputs, &chimera::phonetics::planner::PlanOptions { body: body.into(), t0: 0.0, f0: Some(200.0), ..Default::default() });
+        plan.gestures.iter().filter_map(|g| g.targets.get(ControlKey::F0)).next().unwrap()
+    };
+    let ja: Vec<PhraseInput> = EnglishG2P::new().to_phrases("さかな。").into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register }).collect();
+    let plain: Vec<PhraseInput> = ja.iter().cloned().map(|p| PhraseInput { register: None, ..p }).collect();
+    let [m, f] = chimera::phonetics::japanese::REGISTER;
+    for (body, st) in [("male", m), ("female", f)] {
+        let ratio = first_f0(&ja, body) / first_f0(&plain, body);
+        assert!((ratio - 2f64.powf(st / 12.0)).abs() < 1e-9, "{body}: {ratio}");
+    }
+    assert!(m < 0.0 && f > 0.0);
+    // English brings no register
+    assert!(EnglishG2P::new().to_phrases("Hello.").iter().all(|p| p.register.is_none()));
+}
+
+/// Mean pitch of a text's plan in semitones against the voice's f0 (the pitch targets weighted
+/// by how long each holds), its language's register left out.
+fn mean_pitch_st(g: &EnglishG2P, text: &str, body: &str) -> f64 {
+    use chimera::control::score::ControlKey;
+    let inputs: Vec<PhraseInput> = g.to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: None }).collect();
+    let plan = plan_phrases(&inputs, &chimera::phonetics::planner::PlanOptions { body: body.into(), t0: 0.0, f0: Some(100.0), ..Default::default() });
+    let (mut sum, mut w) = (0.0, 0.0);
+    for g in &plan.gestures {
+        if let Some(f) = g.targets.get(ControlKey::F0) {
+            let d = g.t1 - g.t0;
+            sum += d * 12.0 * (f / 100.0).log2();
+            w += d;
+        }
+    }
+    sum / w
+}
+
+/// The eight translation pairs, the Japanese as the dictionary reads and accents it
+/// (`chimera render text` with `--features jdic`).
+const PAIRS: [(&str, &str); 8] = [
+    ("It is raining.", "ア＼メガ フ＼ッテ イマ＼ス、"),
+    ("Good morning. How are you?", "オハヨーゴザイマ＼ス、オゲ＼ンキデスカ？"),
+    ("The weather is nice today.", "キョ＼ーワ イ＼イ テ＼ンキデスネ、"),
+    ("I want to drink a cup of tea.", "オチャヲ イッパイ ノミタ＼イデス、"),
+    ("Where is the station?", "エ＼キワ ド＼コデスカ？"),
+    ("Thank you very much for your help.", "テツダ＼ッテ クレテ ホントーニ＼ アリ＼ガトー、"),
+    ("My younger brother is playing in the park.", "オトート＼ガ コーエンデ アソンデ イマ＼ス、"),
+    ("Please wait a moment.", "スコ＼シ マ＼ッテ クダサ＼イ、"),
+];
+
+#[test]
+fn japanese_and_english_intonation_sit_at_the_same_mean_pitch() {
+    // Each language's register (REGISTER) is an offset from English; that only holds if the
+    // two intonation models average to the same pitch on the same voice. English lifts its
+    // stressed syllables, Japanese alternates high and low with downstep.
+    let g = english_with_dictionary();
+    let n = PAIRS.len() as f64;
+    let gaps: Vec<(String, f64)> = ["male", "female"]
+        .iter()
+        .map(|body| {
+            let en = PAIRS.iter().map(|(e, _)| mean_pitch_st(g, e, body)).sum::<f64>() / n;
+            let ja = PAIRS.iter().map(|(_, j)| mean_pitch_st(g, j, body)).sum::<f64>() / n;
+            println!("{body}: English {en:+.2} st, Japanese {ja:+.2} st");
+            (body.to_string(), ja - en)
+        })
+        .collect();
+    assert!(gaps.iter().all(|(_, d)| d.abs() < 0.5), "Japanese minus English: {gaps:?}");
 }

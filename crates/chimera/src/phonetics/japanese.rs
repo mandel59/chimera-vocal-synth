@@ -272,6 +272,12 @@ pub fn has_kana(text: &str) -> bool {
 /// ratios below were tuned slow; scaling them all keeps consonants short with the vowels, which
 /// sounded clearer than shortening the vowels alone.
 pub const TEMPO: f64 = 1.95;
+/// Japanese speaking pitch against the voice's (English) pitch, in semitones for a male and a
+/// female speaker: Japanese sets the sexes 1-3 semitones further apart than American English,
+/// the men somewhat lower and the women somewhat higher (Liberman, Language Log 2007, CallHome
+/// telephone speech; female speakers higher in Japanese than in English also in Ohara 1999 and
+/// Muta 1995; the men's results vary between studies). Small samples, so a modest split.
+pub const REGISTER: [f64; 2] = [-1.0, 1.5];
 /// a spoken mora's vowel (s, before [`TEMPO`])
 const MORA_VOWEL: f64 = 0.17;
 /// a spoken ん (s)
@@ -283,6 +289,11 @@ const MORA_GEMINATE: f64 = 0.09;
 /// pitch of a high and a low mora, relative to the phrase's base: about four semitones apart
 const PITCH_HIGH: f64 = 1.12;
 const PITCH_LOW: f64 = 0.9;
+/// Japanese intonation's mean against English's on the same voice, in semitones: highs and
+/// lows with downstep average about 3 semitones under English's stress accents (measured on
+/// eight translation pairs, see the tests), so every Japanese pitch is raised by this before
+/// [`REGISTER`] sets the language apart.
+const PITCH_CENTER_ST: f64 = 3.0;
 /// how far each accented word lowers the ones after it in the phrase, and the floor
 const DOWNSTEP: f64 = 0.88;
 const DOWNSTEP_FLOOR: f64 = 0.7;
@@ -345,7 +356,8 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
         // the fall comes after the morae before the first mark
         let nucleus = w.find(is_accent_mark).map_or(0, |i| kana_to_syllables(&w[..i], None).len());
         let n = s.len();
-        syls.extend(s.drain(..).enumerate().map(|(i, x)| (x, (i + 1 == n).then_some(said.len()), step * accent_pitch(i, n, nucleus))));
+        let center = crate::math::pow(2.0, PITCH_CENTER_ST / 12.0);
+        syls.extend(s.drain(..).enumerate().map(|(i, x)| (x, (i + 1 == n).then_some(said.len()), center * step * accent_pitch(i, n, nucleus))));
         said.push(w.chars().filter(|c| !is_accent_mark(*c)).collect::<String>());
         if nucleus > 0 {
             step = js_max(DOWNSTEP_FLOOR, step * DOWNSTEP);
@@ -383,5 +395,5 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
         _ => 0.3,
     };
     let intonation = if matches!(delim, '？' | '?') { Intonation::Question } else { Intonation::Statement };
-    Some(Phrase { segments: segs, intonation, pause, words: said, rate: Some(TEMPO) })
+    Some(Phrase { segments: segs, intonation, pause, words: said, rate: Some(TEMPO), register: Some(REGISTER) })
 }

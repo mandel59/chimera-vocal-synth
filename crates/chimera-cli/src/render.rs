@@ -172,6 +172,7 @@ pub fn text(ctx: &Ctx, a: &[String]) -> Result<(), String> {
             intonation: Some(p.intonation),
             pause: Some(p.pause),
             rate: p.rate,
+            register: p.register,
         })
         .collect();
     let plan = plan_phrases(
