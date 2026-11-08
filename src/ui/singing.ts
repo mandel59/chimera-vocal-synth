@@ -14,6 +14,7 @@ import { planSong, planNoteOn, planNoteOff, planMelisma } from "../wasm/engine.t
 import { EXHALE_LABEL } from "../wasm/engine.ts";
 import { DEMO_SONGS } from "../wasm/engine.ts";
 import type { Gesture } from "../wasm/types.ts";
+import { writtenSyllable } from "../show/words.ts";
 import { nearestBody, type BodyMix } from "./body.ts";
 
 /** A note on the piano roll, on the voice clock (s); t1 is null while it is held. */
@@ -91,8 +92,8 @@ interface Sounding {
 
 let sounding: Sounding | null = null;
 
-/** How a syllable is written at the mouth: a hyphen when its word goes on. */
-const written = (s: Syllable) => s.text + (s.wordEnd ? "" : "-");
+/** How a syllable is written at the mouth: a hyphen when its word goes on (not in Japanese). */
+const written = (s: Syllable) => writtenSyllable(s.text, s.wordEnd);
 
 /**
  * The syllable being sung now, for the words at the mouth: the demo's note under the clock, or
