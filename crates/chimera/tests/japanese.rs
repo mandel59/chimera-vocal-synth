@@ -34,7 +34,9 @@ fn katakana_reads_as_hiragana() {
 
 #[test]
 fn small_kana_join_the_mora_before() {
-    assert_eq!(show("きゃしゅちょ"), "きゃ:kj.a. しゅ:ɕ.ɯ. ちょ:tɕ.o.");
+    assert_eq!(show("きゃしゅちょ"), "きゃ:c.a. しゅ:ɕ.ɯ. ちょ:tɕ.o.");
+    // a palatalized velar or nasal is one palatal consonant; labials take a glide
+    assert_eq!(show("ぎょにゃみゅりょ"), "ぎょ:ɟ.o. にゃ:ɲ.a. みゅ:mj.ɯ. りょ:ɾj.o.");
     assert_eq!(show("ふぁてぃうぇ"), "ふぁ:ɸ.a. てぃ:t.i. うぇ:w.e.");
 }
 
@@ -353,4 +355,16 @@ fn japanese_takes_as_long_as_the_same_words_in_english() {
     let ratio = (log_sum / pairs.len() as f64).exp();
     println!("geometric mean Japanese / English: {ratio:.3}");
     assert!((0.9..=1.1).contains(&ratio), "Japanese takes {ratio:.2}× as long as English");
+}
+
+#[test]
+fn kyo_has_an_audible_burst() {
+    // heard 2026-11-09: the き of きょ＼ーわ at the start had a weak burst. As [k] + [j] the
+    // release went into the glide's narrowing and all but vanished; as one palatal [c] it
+    // releases into the vowel, its burst above the vowel's high band (the closure seals in both).
+    // Not compared with こ: the male velar burst is itself strong (+15 dB, like が's +19).
+    let kyo = release_excess("きょーわ。", "c");
+    println!("{kyo:?}");
+    assert_eq!(kyo.len(), 2, "one per voice");
+    assert!(kyo.iter().all(|(_, e)| *e > 0.0), "{kyo:?}");
 }

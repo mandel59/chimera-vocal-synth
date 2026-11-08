@@ -152,9 +152,16 @@ fn morae(word: &str) -> Vec<Mora> {
                     if is_small_y(s) {
                         let (_, v) = base(s).unwrap_or((&[], "a"));
                         vowel = v;
-                        // しゃ ちゃ じゃ ひゃ are palatal already; きゃ → kja, いゃ → ja
-                        if !matches!(onset.last(), Some(&("ɕ" | "tɕ" | "dʑ" | "ç" | "j"))) {
-                            onset.push("j");
+                        // しゃ ちゃ じゃ ひゃ are palatal already. A palatalized velar or nasal is
+                        // one consonant made at the palate, released straight into the vowel: きゃ
+                        // [ca], ぎゃ [ɟa], にゃ [ɲa] (as [k] + [j] its burst all but vanished,
+                        // released into the glide's narrowing). Others take a [j]: みゃ [mja].
+                        match onset.last().copied() {
+                            Some("ɕ" | "tɕ" | "dʑ" | "ç" | "j") => {}
+                            Some("k") => *onset.last_mut().unwrap() = "c",
+                            Some("g") => *onset.last_mut().unwrap() = "ɟ",
+                            Some("n") => *onset.last_mut().unwrap() = "ɲ",
+                            _ => onset.push("j"),
                         }
                         text.push(raw2);
                         i += 1;
@@ -198,7 +205,7 @@ fn moraic_nasal(next: Option<&str>) -> &'static str {
     match next {
         Some("p" | "b" | "m") => "m",
         Some("t" | "d" | "n" | "ts" | "dz" | "ɾ") => "n",
-        Some("tɕ" | "dʑ") => "ɲ",
+        Some("tɕ" | "dʑ" | "c" | "ɟ" | "ɲ") => "ɲ",
         Some("k" | "g") => "ŋ",
         _ => "ɴ",
     }
@@ -210,7 +217,7 @@ fn geminate(next: Option<&'static str>) -> &'static str {
     match next {
         Some("tɕ" | "ts") => "t",
         Some("dʑ" | "dz") => "d",
-        Some(c @ ("p" | "b" | "t" | "d" | "k" | "g" | "s" | "z" | "ɕ" | "ɸ" | "ç" | "h" | "m" | "n")) => c,
+        Some(c @ ("p" | "b" | "t" | "d" | "k" | "g" | "c" | "ɟ" | "s" | "z" | "ɕ" | "ɸ" | "ç" | "h" | "m" | "n")) => c,
         _ => "ʔ",
     }
 }
