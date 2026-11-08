@@ -193,6 +193,53 @@ fn speak(text: &str, body: HumanBody, name: &str, f0: f64) -> (chimera::phonetic
     (plan, out)
 }
 
+/// dB of the 2 ms RMS of the first difference (a crude high-pass: a release burst is broadband, a
+/// voiced vowel has little energy up there) in 2 ms steps over `t0..t1`
+fn hp_peaks(x: &[f32], t0: f64, t1: f64) -> Vec<f64> {
+    let n = (0.002 * FS) as usize;
+    let (a, b) = ((t0 * FS) as usize, ((t1 * FS) as usize).min(x.len() - 1));
+    (a..b).step_by(n).map(|i| {
+        let e: f64 = (i..(i + n).min(x.len() - 1)).map(|j| ((x[j + 1] - x[j]) as f64).powi(2)).sum::<f64>() / n as f64;
+        10.0 * (e + 1e-20).log10()
+    }).collect()
+}
+
+/// How far the loudest 2 ms of high-passed sound around the release of the consonant `ipa`
+/// (10 ms either side) rises over the following vowel's middle (its median 2 ms).
+fn release_excess(text: &str, ipa: &str) -> Vec<(String, f64)> {
+    let mut out = vec![];
+    for (body, name, f0) in [(BODY_MALE, "male", 112.0), (BODY_FEMALE, "female", 205.0)] {
+        let (plan, x) = speak(text, body, name, f0);
+        let segs = &plan.segments;
+        for (i, s) in segs.iter().enumerate().filter(|(_, s)| s.ipa == ipa) {
+            let Some(v) = segs.get(i + 1) else { continue };
+            let burst = hp_peaks(&x, s.t1 - 0.01, s.t1 + 0.01).into_iter().fold(f64::MIN, f64::max);
+            let mut vowel = hp_peaks(&x, v.t0 + 0.3 * (v.t1 - v.t0), v.t0 + 0.7 * (v.t1 - v.t0));
+            vowel.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            out.push((format!("{name} {ipa}{} at {:.2} s", v.ipa, s.t1), burst - vowel[vowel.len() / 2]));
+        }
+    }
+    out
+}
+
+#[test]
+fn ga_is_a_fricative_only_after_a_vowel_in_a_word() {
+    assert_eq!(show("がっこう"), "が:g.a.k こ:k.o. う:.ɯ.");
+    assert_eq!(show("りんご"), "り:ɾ.i. ん:.ŋ. ご:g.o."); // after ん: [ŋg]
+    assert_eq!(show("かがみ"), "か:k.a. が:ɣ.a. み:m.i.");
+    assert_eq!(show("あめが ぎんが"), "あ:.a. め:m.e. が:ɣ.a. ぎ:g.i. ん:.ŋ. が:g.a.");
+}
+
+#[test]
+fn ga_between_vowels_has_no_strong_release_burst() {
+    // heard 2026-11-09: the が of あめがふる has a sharp plosive release burst; between vowels
+    // Japanese /g/ is a weak stop or the fricative [ɣ] (or the nasal [ŋ], 鼻濁音)
+    let r = release_excess("あめがふる。", "ɣ");
+    println!("{r:?}");
+    assert_eq!(r.len(), 2, "one per voice");
+    assert!(r.iter().all(|(_, e)| *e < 10.0), "{r:?}");
+}
+
 /// How long (ms) the sound around the consonant `ipa` stays 20 dB under the following vowel's
 /// middle, in 2 ms RMS frames: the closure a listener hears.
 fn closure_ms(text: &str, ipa: &str) -> Vec<(String, f64)> {

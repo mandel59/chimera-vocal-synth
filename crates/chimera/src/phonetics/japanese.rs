@@ -6,8 +6,8 @@
 //!    (m before p b m, n before t d n ts ɾ, ŋ before k g, otherwise ɴ).
 //!  - っ takes no note: it closes the mora before it on the next consonant (かった → ka-t | ta).
 //!
-//! し ち じ are the alveolo-palatal ɕ tɕ dʑ (unrounded, unlike English sh ch j), and う is the
-//! unrounded ɯ.
+//! し ち じ are the alveolo-palatal ɕ tɕ dʑ (unrounded, unlike English sh ch j), う is the
+//! unrounded ɯ, and が行 inside a word the fricative ɣ.
 //!
 //! Speech ([`to_phrases`]) uses the same morae, timed evenly (Japanese is mora-timed). Vowels
 //! aren't devoiced (すき, です): dropping the vowel, the only voiceless vowel the planner can make,
@@ -237,6 +237,14 @@ pub fn kana_to_syllables(word: &str, prev: Option<&Syllable>) -> Vec<Syllable> {
                     p.coda.push(seg(geminate(next_consonant(&ms, k + 1))));
                 }
             }
+        }
+    }
+    // が行 after a vowel inside a word is a fricative [ɣ], not a stop: a [g] released between
+    // vowels bursts (heard in あめがふる). Word-initially, and after ん or っ, it stays [g].
+    for k in 1..out.len() {
+        let after_vowel = out[k - 1].coda.is_empty() && matches!(out[k - 1].nucleus.ipa.as_str(), "a" | "i" | "ɯ" | "e" | "o");
+        if let Some(c) = out[k].onset.first_mut().filter(|c| c.ipa == "g" && after_vowel) {
+            c.ipa = "ɣ".into();
         }
     }
     out
