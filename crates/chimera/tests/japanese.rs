@@ -118,3 +118,57 @@ fn spoken_words_match_their_word_ends() {
 fn english_text_is_still_english() {
     assert!(!spoken("hello").contains('ɯ'));
 }
+
+// ---------------------------------------------------------------- pitch accent
+
+/// "H"/"L" per spoken mora (each vowel or ん), compared to the phrase's first word's middle
+fn accents(text: &str) -> String {
+    let p = &EnglishG2P::new().to_phrases(text)[0];
+    p.segments
+        .iter()
+        .filter_map(|s| s.pitch)
+        .map(|x| if x > 1.0 { 'H' } else { 'L' })
+        .collect()
+}
+
+#[test]
+fn words_are_flat_unless_a_fall_is_marked() {
+    assert_eq!(accents("はし"), "LH"); // 端
+    assert_eq!(accents("は＼し"), "HL"); // 箸
+    assert_eq!(accents("はし＼"), "LH"); // 橋: the fall comes on what follows
+    assert_eq!(accents("さか＼な"), "LHL");
+    assert_eq!(accents("さかな"), "LHH");
+    // \ and ꜜ mark it too, and the mark is not part of the word
+    assert_eq!(accents("は\\し"), "HL");
+    assert_eq!(accents("はꜜし"), "HL");
+    assert_eq!(EnglishG2P::new().to_phrases("は＼し")[0].words, ["はし"]);
+}
+
+#[test]
+fn an_accented_word_steps_the_next_one_down() {
+    let p = &EnglishG2P::new().to_phrases("あ＼め さかな")[0];
+    let pitch: Vec<f64> = p.segments.iter().filter_map(|s| s.pitch).collect();
+    // あ＼め H L, then さかな L H H a step lower
+    assert!(pitch[3] < pitch[0] && pitch[3] > pitch[2], "{pitch:?}");
+    let flat = &EnglishG2P::new().to_phrases("あめ さかな")[0];
+    let flat: Vec<f64> = flat.segments.iter().filter_map(|s| s.pitch).collect();
+    assert_eq!(flat[3], flat[1], "a flat word doesn't step down");
+}
+
+#[test]
+fn lyrics_ignore_accent_marks() {
+    assert_eq!(show("は＼し"), "は:h.a. し:ɕ.i.");
+}
+
+#[test]
+fn the_planner_follows_a_given_pitch() {
+    use chimera::control::score::ControlKey;
+    use chimera::phonetics::planner::{PlanOptions, plan_utterance};
+    let peak = |text: &str| {
+        let p = &EnglishG2P::new().to_phrases(text)[0];
+        let plan = plan_utterance(&p.segments, &PlanOptions { f0: Some(100.0), ..Default::default() });
+        // the pitch target on the first vowel's gesture
+        plan.gestures.iter().filter_map(|g| g.targets.get(ControlKey::F0)).next().unwrap()
+    };
+    assert!(peak("は＼し") > peak("はし"), "{} vs {}", peak("は＼し"), peak("はし"));
+}

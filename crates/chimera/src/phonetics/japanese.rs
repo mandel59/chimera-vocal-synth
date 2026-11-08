@@ -11,9 +11,14 @@
 //!
 //! Speech ([`to_phrases`]) uses the same morae, timed evenly (Japanese is mora-timed). Vowels
 //! aren't devoiced (すき, です): dropping the vowel, the only voiceless vowel the planner can make,
-//! was heard as a missing mora. Pitch accent isn't modelled: each phrase falls.
+//! was heard as a missing mora.
+//!
+//! Spoken words get Tokyo pitch accent: low first mora and high after it (平板, the default), or
+//! with a fall marked after the accented mora by ＼ (also \ or ꜜ): は＼し 箸, はし＼ 橋, はし 端. A
+//! word with a fall lowers the words after it in the phrase (downstep). Lyrics ignore the marks.
 
 use super::english::Phrase;
+use crate::math::js_max;
 use super::{Intonation, Segment, Syllable};
 
 /// A kana character, or ー, that starts or continues a run of Japanese lyrics.
@@ -252,6 +257,28 @@ const MORA_N: f64 = 0.15;
 const MORA_LONG: f64 = 0.1;
 /// a っ closure (s): a mora's worth of silence
 const MORA_GEMINATE: f64 = 0.09;
+/// pitch of a high and a low mora, relative to the phrase's base: about four semitones apart
+const PITCH_HIGH: f64 = 1.12;
+const PITCH_LOW: f64 = 0.9;
+/// how far each accented word lowers the ones after it in the phrase, and the floor
+const DOWNSTEP: f64 = 0.88;
+const DOWNSTEP_FLOOR: f64 = 0.7;
+
+/// A pitch-accent mark: the pitch falls after the mora before it.
+pub fn is_accent_mark(c: char) -> bool {
+    matches!(c, '＼' | '\\' | 'ꜜ')
+}
+
+/// Tokyo accent: the pitch of mora `m` (0-based) of a word of `n` morae whose fall comes after
+/// mora `nucleus` (1-based; 0 for none, 平板).
+fn accent_pitch(m: usize, n: usize, nucleus: usize) -> f64 {
+    let high = match nucleus {
+        1 => m == 0,
+        0 => m > 0 || n == 1,
+        k => m > 0 && m < k,
+    };
+    if high { PITCH_HIGH } else { PITCH_LOW }
+}
 
 fn is_speech_punct(c: char) -> bool {
     matches!(c, '、' | '。' | '！' | '？' | ',' | '.' | '!' | '?' | '\n')
@@ -266,7 +293,7 @@ pub fn to_phrases(text: &str) -> Vec<Phrase> {
             part.push(c);
             continue;
         }
-        let words: Vec<String> = part.split(|c: char| !is_kana(c)).filter(|w| !w.is_empty()).map(str::to_string).collect();
+        let words: Vec<String> = part.split(|c: char| !is_kana(c) && !is_accent_mark(c)).filter(|w| !w.is_empty()).map(str::to_string).collect();
         part.clear();
         if let Some(p) = phrase(&words, c) {
             phrases.push(p);
@@ -277,9 +304,10 @@ pub fn to_phrases(text: &str) -> Vec<Phrase> {
 }
 
 fn phrase(words: &[String], delim: char) -> Option<Phrase> {
-    // the phrase's morae with the index of the word each ends
-    let mut syls: Vec<(Syllable, Option<usize>)> = Vec::new();
+    // the phrase's morae, each with the index of the word it ends and its pitch
+    let mut syls: Vec<(Syllable, Option<usize>, f64)> = Vec::new();
     let mut said = Vec::new();
+    let mut step = 1.0;
     for w in words {
         let mut s = kana_to_syllables(w, syls.last().map(|x| &x.0));
         if s.is_empty() {
@@ -287,18 +315,24 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
         }
         // a lone ー only lengthens the word before: no word of its own
         if s.iter().all(|x| x.melisma == Some(true)) {
-            syls.extend(s.drain(..).map(|x| (x, None)));
+            let p = syls.last().map_or(1.0, |x| x.2);
+            syls.extend(s.drain(..).map(|x| (x, None, p)));
             continue;
         }
+        // the fall comes after the morae before the first mark
+        let nucleus = w.find(is_accent_mark).map_or(0, |i| kana_to_syllables(&w[..i], None).len());
         let n = s.len();
-        syls.extend(s.drain(..).enumerate().map(|(i, x)| (x, (i + 1 == n).then_some(said.len()))));
-        said.push(w.clone());
+        syls.extend(s.drain(..).enumerate().map(|(i, x)| (x, (i + 1 == n).then_some(said.len()), step * accent_pitch(i, n, nucleus))));
+        said.push(w.chars().filter(|c| !is_accent_mark(*c)).collect::<String>());
+        if nucleus > 0 {
+            step = js_max(DOWNSTEP_FLOOR, step * DOWNSTEP);
+        }
     }
     if syls.is_empty() {
         return None;
     }
     let mut segs: Vec<Segment> = Vec::new();
-    for (s, word_end) in &syls {
+    for (s, word_end, pitch) in &syls {
         if s.melisma == Some(true) {
             if let Some(v) = segs.iter_mut().rev().find(|x| x.stress == Some(1)) {
                 v.dur = Some(v.dur.unwrap_or(MORA_VOWEL) + MORA_LONG);
@@ -308,7 +342,7 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
             for c in &s.onset {
                 segs.push(Segment { ipa: c.ipa.clone(), stress: Some(0), ..Default::default() });
             }
-            segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(if vowel { MORA_VOWEL } else { MORA_N }), stress: Some(1), ..Default::default() });
+            segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(if vowel { MORA_VOWEL } else { MORA_N }), stress: Some(1), pitch: Some(*pitch), ..Default::default() });
             for c in &s.coda {
                 segs.push(Segment { ipa: c.ipa.clone(), dur: Some(MORA_GEMINATE), stress: Some(0), ..Default::default() });
             }

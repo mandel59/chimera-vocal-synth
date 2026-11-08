@@ -162,7 +162,7 @@ fn lyric_tokens(text: &str) -> Vec<String> {
         let c = s[i];
         if japanese::is_kana(c) {
             let start = i;
-            while i < s.len() && japanese::is_kana(s[i]) {
+            while i < s.len() && (japanese::is_kana(s[i]) || japanese::is_accent_mark(s[i])) {
                 i += 1;
             }
             out.push(s[start..i].iter().collect());

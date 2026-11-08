@@ -155,6 +155,8 @@ export interface Segment {
   stress?: number;
   f0?: number;
   wordEnd?: boolean;
+  /** speech pitch relative to the phrase's base, in place of stress accents (Japanese) */
+  pitch?: number;
 }
 
 export interface PlannedSegment {

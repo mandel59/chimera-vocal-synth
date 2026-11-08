@@ -34,6 +34,10 @@ pub struct Segment {
     /// word boundary after this segment
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub word_end: Option<bool>,
+    /// speech pitch relative to the phrase's base (× f0, before declination), in place of the
+    /// stress accents: the high and low morae of a pitch-accent language
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pitch: Option<f64>,
 }
 
 impl Segment {

@@ -167,6 +167,7 @@ struct Seg<'a> {
     dur: Option<f64>,
     stress: Option<u8>,
     f0: Option<f64>,
+    pitch: Option<f64>,
     def: Option<PhonemeDef>,
     vowel: Option<ArticPatch>,
     glide_from: bool,
@@ -196,10 +197,10 @@ pub fn plan_utterance(input: &[Segment], o: &PlanOptions) -> Plan {
             let base = durs[si];
             for (i, p) in parts.iter().enumerate() {
                 let dur = if parts.len() > 1 { base * (if i == 0 { 0.55 } else { 0.45 }) } else { base };
-                segs.push(Seg { ipa: p, dur: Some(dur), stress: s.stress, f0: s.f0, def: None, vowel: None, glide_from: i > 0 });
+                segs.push(Seg { ipa: p, dur: Some(dur), stress: s.stress, f0: s.f0, pitch: s.pitch, def: None, vowel: None, glide_from: i > 0 });
             }
         } else {
-            segs.push(Seg { ipa: &s.ipa, dur: Some(durs[si]), stress: s.stress, f0: s.f0, def: None, vowel: None, glide_from: false });
+            segs.push(Seg { ipa: &s.ipa, dur: Some(durs[si]), stress: s.stress, f0: s.f0, pitch: s.pitch, def: None, vowel: None, glide_from: false });
         }
     }
     for s in segs.iter_mut() {
@@ -361,7 +362,9 @@ pub fn plan_utterance(input: &[Segment], o: &PlanOptions) -> Plan {
             let prog = (t0 - o.t0) / total;
             let decl = 1.0 - 0.1 * prog;
             let is_nuclear = i as isize == nuclear;
-            let acc = if s.stress == Some(1) {
+            let acc = if let Some(p) = s.pitch {
+                p
+            } else if s.stress == Some(1) {
                 1.0 + (if is_nuclear { accent * 1.8 } else { accent })
             } else if s.stress == Some(2) {
                 1.0 + accent * 0.5
@@ -373,7 +376,8 @@ pub fn plan_utterance(input: &[Segment], o: &PlanOptions) -> Plan {
             if last && o.intonation == Some(Intonation::Question) {
                 target = f0 * 1.35;
             }
-            if last && o.intonation.unwrap_or(Intonation::Statement) == Intonation::Statement {
+            // a given pitch already shapes the phrase's end
+            if last && s.pitch.is_none() && o.intonation.unwrap_or(Intonation::Statement) == Intonation::Statement {
                 if is_nuclear && t1 - t0 > 0.08 {
                     // accent peak early in the vowel, then the fall within it
                     gestures.push(Gesture::new(t0, t0 + 0.35 * (t1 - t0), 0.05, 0.05, 1.0, one(ControlKey::F0, target)).label("pitch"));
