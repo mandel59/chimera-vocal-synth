@@ -269,7 +269,7 @@ pub const TEMPO: f64 = 1.95;
 const MORA_VOWEL: f64 = 0.17;
 /// a spoken ん (s)
 const MORA_N: f64 = 0.15;
-/// what ー adds to the vowel before it (s)
+/// a spoken ー: the vowel before it, held on as a mora of its own (s)
 const MORA_LONG: f64 = 0.1;
 /// a っ closure (s): a mora's worth of silence
 const MORA_GEMINATE: f64 = 0.09;
@@ -350,9 +350,8 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
     let mut segs: Vec<Segment> = Vec::new();
     for (s, word_end, pitch) in &syls {
         if s.melisma == Some(true) {
-            if let Some(v) = segs.iter_mut().rev().find(|x| x.stress == Some(1)) {
-                v.dur = Some(v.dur.unwrap_or(MORA_VOWEL) + MORA_LONG);
-            }
+            // ー is a mora of its own: the vowel goes on, at its own pitch (キョ＼ー falls inside)
+            segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(MORA_LONG), stress: Some(1), pitch: Some(*pitch), ..Default::default() });
         } else {
             let vowel = matches!(s.nucleus.ipa.as_str(), "a" | "i" | "ɯ" | "e" | "o");
             for c in &s.onset {

@@ -349,11 +349,14 @@ pub fn plan_utterance(input: &[Segment], o: &PlanOptions) -> Plan {
             nuclear = i as isize;
         }
     }
-    for (n, &i) in v_idx.iter().enumerate() {
+    // pitch targets go on the vowels, and on any segment given a `pitch`: a mora that is a nasal
+    // (Japanese ん) carries its own high or low. Without a given pitch this is just the vowels.
+    let p_idx: Vec<usize> = segs.iter().enumerate().filter(|(_, s)| s.vowel.is_some() || s.pitch.is_some()).map(|(i, _)| i).collect();
+    for (n, &i) in p_idx.iter().enumerate() {
         let s = &segs[i];
         let Span { t0, t1 } = times[i];
         // pitch holds through the consonants up to the next vowel (instead of sagging to the base)
-        let hold = if n < v_idx.len() - 1 { js_max(t1, times[v_idx[n + 1]].t0 - 0.03) } else { t1 };
+        let hold = if n < p_idx.len() - 1 { js_max(t1, times[p_idx[n + 1]].t0 - 0.03) } else { t1 };
         let mut target: f64;
         let has_f0 = truthy(s.f0);
         if has_f0 {
@@ -372,7 +375,7 @@ pub fn plan_utterance(input: &[Segment], o: &PlanOptions) -> Plan {
                 1.0
             };
             target = f0 * decl * acc;
-            let last = n == v_idx.len() - 1;
+            let last = n == p_idx.len() - 1;
             if last && o.intonation == Some(Intonation::Question) {
                 target = f0 * 1.35;
             }

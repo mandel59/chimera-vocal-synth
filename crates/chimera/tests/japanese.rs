@@ -106,10 +106,24 @@ fn spoken_vowels_keep_their_voice() {
 }
 
 #[test]
-fn a_long_mark_lengthens_the_spoken_vowel() {
-    let plain = &EnglishG2P::new().to_phrases("か")[0].segments[1];
-    let long = &EnglishG2P::new().to_phrases("かー")[0].segments[1];
-    assert!(long.dur.unwrap() > plain.dur.unwrap());
+fn a_long_mark_is_a_mora_of_its_own() {
+    assert_eq!(spoken("かー"), "k a a");
+    // and carries its own pitch: 今日 キョ＼ー falls inside the long vowel
+    assert_eq!(accents("きょ＼ーわ"), "HLL");
+}
+
+#[test]
+fn the_pitch_falls_on_a_moraic_nasal() {
+    // asked 2026-11-09: in しれませ＼ん the fall must reach the ん, which the planner skipped
+    // (pitch targets went on vowels only)
+    use chimera::control::score::ControlKey;
+    use chimera::phonetics::planner::{PlanOptions, plan_utterance};
+    let p = &EnglishG2P::new().to_phrases("ませ＼ん")[0];
+    assert_eq!(p.segments.last().unwrap().ipa, "ɰ̃");
+    let plan = plan_utterance(&p.segments, &PlanOptions { f0: Some(100.0), ..Default::default() });
+    let targets: Vec<f64> = plan.gestures.iter().filter_map(|g| g.targets.get(ControlKey::F0)).collect();
+    assert_eq!(targets.len(), 3, "one per mora: {targets:?}");
+    assert!(targets[2] < targets[1], "ん lower than せ: {targets:?}");
 }
 
 #[test]
