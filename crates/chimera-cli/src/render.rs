@@ -123,7 +123,8 @@ pub fn speech(ctx: &Ctx, a: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-/// English text through G2P and the phrase planner. `render text <out> ["Text."] [body]`
+/// Text through G2P and the phrase planner: English, or Japanese kana (with the `jdic` feature,
+/// kanji too, read and accented by the dictionary). `render text <out> ["Text."] [body]`
 pub fn text(ctx: &Ctx, a: &[String]) -> Result<(), String> {
     let name = arg(a, 0, "out/text");
     let text = arg(a, 1, "Hello world.");
@@ -133,6 +134,16 @@ pub fn text(ctx: &Ctx, a: &[String]) -> Result<(), String> {
         "female" => 205.0,
         "child" => 250.0,
         _ => 112.0,
+    };
+    #[cfg(feature = "jdic")]
+    let annotated = if crate::jdic::wants(text) { Some(crate::jdic::annotate(text)?) } else { None };
+    #[cfg(feature = "jdic")]
+    let text = match &annotated {
+        Some(t) => {
+            println!("{t}");
+            t.as_str()
+        }
+        None => text,
     };
     let g = g2p()?;
     let phrases = g.to_phrases(text);

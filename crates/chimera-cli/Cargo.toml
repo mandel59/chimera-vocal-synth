@@ -14,3 +14,9 @@ chimera = { path = "../chimera" }
 flate2 = "1"
 serde = "1"
 serde_json = "1"
+jpreprocess = { version = "0.15.0", features = ["naist-jdic"], optional = true }
+
+[features]
+# Japanese text with kanji, readings and pitch accents from OpenJTalk's dictionary (jpreprocess +
+# naist-jdic, downloaded at build time, about 100 MB): `cargo build -p chimera-cli --features jdic`
+jdic = ["dep:jpreprocess"]

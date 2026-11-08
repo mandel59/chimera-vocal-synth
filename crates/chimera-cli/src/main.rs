@@ -6,6 +6,8 @@
 mod calibrate;
 mod compare;
 mod diagnose;
+#[cfg(feature = "jdic")]
+mod jdic;
 mod js;
 mod render;
 mod wav;
