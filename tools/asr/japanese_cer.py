@@ -3,18 +3,21 @@ eighth note on a near-monotone line with `chimera render notes` in the male and 
 transcribe it in Japanese with faster-whisper (multilingual small, greedy, so the same audio gives
 the same text), read the transcript back into hiragana (pykakasi) and count character errors.
 
-usage: japanese_cer.py <outdir> [--against earlier/cer.json]
+usage: japanese_cer.py <outdir> [--against earlier/cer.json] [--chimera path/to/chimera]
 
-Writes <outdir>/cer.json and the renders. With --against it compares the character error rate
-(both bodies together): BETTER if it fell by at least MARGIN points, WORSE if it rose by more than
-SLACK, and NO CLEAR CHANGE between.
+Writes <outdir>/cer.json and the renders. With --against it compares the training sentences'
+character error rate (both bodies together): BETTER if it fell by at least MARGIN points, WORSE if
+it rose by more than SLACK, and NO CLEAR CHANGE between. The held-out sentences are reported but
+never decide, and their transcripts aren't printed: a tuning loop must not listen to them.
+--chimera renders with another build (default target/release/chimera), to measure a baseline.
 
 A sentence's errors count at most its length: greedy Whisper sometimes loops on one character
 ("ぬぅぅぅ…") and would otherwise swamp every other sentence.
 
-Most sentences are dense in し ち じ (the alveolo-palatal ɕ tɕ dʑ); a few without them are a
-control. Particles are written as sung (わ, not は), and the lyrics avoid は and へ as particles
-because the transcript is read back by spelling.
+The sentences are in japanese_sentences.tsv (set, focus, text): "train" (24) and "held" (12),
+each spread over a focus the sentence is dense in: sh (し しゃ…), ch, j, r (ら行), devoice (i/u
+between voiceless consonants) and control. They are hiragana, 12-20 kana, with particles written
+as sung (わ, え) and no は or へ at all, because the transcript is read back by spelling.
 
 Set up once with tools/asr/setup.sh. Build the CLI first: cargo build --release -p chimera-cli.
 """
@@ -38,23 +41,9 @@ CACHE = os.path.expanduser("~/.cache/chimera-asr/models")
 BODIES = ("male", "female")
 # character error rate (points) a change may add before it counts as a regression
 SLACK = 3.0
-# fall in character error rate (points) that counts as an improvement: about 5 of the 368 kana
+# fall in character error rate (points) that counts as an improvement: about 12 of the ~800
+# training kana (both bodies)
 MARGIN = 1.5
-
-SENTENCES = [
-    "しずかなあさにしろいねこがねむる",
-    "ちいさなちょうちょがのにとまった",
-    "じぶんのじかんをたいせつにしよう",
-    "しんぶんをよみながらおちゃをのむ",
-    "きしゃのまどからやまがみえる",
-    "あしたもいっしょにうたをうたおう",
-    "ちかてつのえきでともだちをまつ",
-    "じゅうじにしゅっぱつします",
-    "さくらのはながさいている",
-    "そらにほしがひかっている",
-    "むかしむかしあるところにおじいさんがいました",
-    "にじのむこうにちいさなしまがある",
-]
 
 KKS = pykakasi.kakasi()
 
@@ -99,13 +88,19 @@ def main():
         i = args.index("--against")
         against = args[i + 1]
         del args[i : i + 2]
+    chimera = os.path.join(REPO, "target/release/chimera")
+    if "--chimera" in args:
+        i = args.index("--chimera")
+        chimera = os.path.abspath(args[i + 1])
+        del args[i : i + 2]
     out = args[0]
     os.makedirs(out, exist_ok=True)
-    chimera = os.path.join(REPO, "target/release/chimera")
-    jobs = [(text, body, os.path.join(out, f"{body}-{i + 1:02d}")) for i, text in enumerate(SENTENCES) for body in BODIES]
+    sentences = [line.rstrip("\n").split("\t") for line in open(os.path.join(HERE, "japanese_sentences.tsv")) if line.strip()]
+    jobs = [(part, focus, text, body, os.path.join(out, f"{part}-{focus}-{body}-{i + 1:02d}"))
+            for i, (part, focus, text) in enumerate(sentences) for body in BODIES]
 
     def render(job):
-        text, body, stem = job
+        _, _, text, body, stem = job
         with open(stem + ".json", "w") as f:
             json.dump(melody(text), f, ensure_ascii=False)
         subprocess.run([chimera, "render", "notes", stem + ".json", stem, body], check=True, capture_output=True)
@@ -115,13 +110,15 @@ def main():
 
     model = WhisperModel("small", device="cpu", compute_type="int8", cpu_threads=os.cpu_count(), download_root=CACHE)
     rows, totals = [], {}
-    for text, body, stem in jobs:
+    for part, focus, text, body, stem in jobs:
         segs, _ = model.transcribe(load16k(stem + ".wav"), language="ja", beam_size=1, temperature=0.0,
                                    condition_on_previous_text=False, vad_filter=False)
         heard = "".join(s.text.strip() for s in segs)
         e = min(edits(text, kana(heard)), len(text))
-        rows.append({"body": body, "text": text, "heard": heard, "errors": e, "chars": len(text)})
-        for key in (body, "all"):
+        rows.append({"set": part, "focus": focus, "body": body, "text": text, "heard": heard, "errors": e, "chars": len(text)})
+        # "all" is the training sentences; "held" the others
+        keys = (body, focus, "all") if part == "train" else ("held",)
+        for key in keys:
             t = totals.setdefault(key, [0, 0])
             t[0] += e
             t[1] += len(text)
@@ -129,14 +126,16 @@ def main():
     with open(os.path.join(out, "cer.json"), "w") as f:
         json.dump({"cer": cer, "sentences": rows}, f, ensure_ascii=False, indent=1)
     for r in rows:
-        if r["errors"]:
-            print(f"  {r['body']:6s} {r['errors']:2d}/{r['chars']}  {r['text']}  →  {r['heard'][:40]}")
+        if r["errors"] and r["set"] == "train":
+            print(f"  {r['focus']:8s} {r['body']:6s} {r['errors']:2d}/{r['chars']}  {r['text']}  →  {r['heard'][:40]}")
     print("character error rate (%): " + ", ".join(f"{k} {v}" for k, v in sorted(cer.items())))
     if against:
-        old, new = json.load(open(against))["cer"]["all"], cer["all"]
+        before = json.load(open(against))["cer"]
+        old, new = before["all"], cer["all"]
         verdict = "WORSE" if new > old + SLACK else "BETTER" if new <= old - MARGIN else "NO CLEAR CHANGE"
-        print(f"japanese verdict against {against}: {verdict} (character error rate {old} → {new} %, "
-              f"better from -{MARGIN}, worse past +{SLACK})")
+        held = f"; held-out {before['held']} → {cer['held']} %, not used to decide" if "held" in before else ""
+        print(f"japanese verdict against {against}: {verdict} (training character error rate {old} → {new} %, "
+              f"better from -{MARGIN}, worse past +{SLACK}{held})")
 
 
 main()
