@@ -6,6 +6,7 @@
 
 use crate::anatomy::human::BodyMix;
 use super::english::js_is_space;
+use super::japanese;
 use super::planner::is_vowel;
 use super::{Segment, Syllable};
 use serde::{Deserialize, Serialize};
@@ -145,19 +146,28 @@ impl<F: Fn(&str, bool) -> Vec<Segment>> WordSource for F {
 }
 
 fn is_lyric_punct(c: char) -> bool {
-    matches!(c, '.' | ',' | ';' | ':' | '!' | '?' | '\n')
+    matches!(c, '.' | ',' | ';' | ':' | '!' | '?' | '\n' | '、' | '。' | '！' | '？')
 }
 fn is_word_start(c: char) -> bool {
     c.is_ascii_alphabetic() || c == '\''
 }
 
-/// `text.match(/[A-Za-z'][A-Za-z'\-]*|(?<=\s|^)[~-](?=\s|$)|[.,;:!?\n]/g)`
+/// `text.match(/[A-Za-z'][A-Za-z'\-]*|(?<=\s|^)[~-](?=\s|$)|[.,;:!?\n]/g)`, plus runs of kana
+/// (Japanese lyrics) and Japanese punctuation.
 fn lyric_tokens(text: &str) -> Vec<String> {
     let s: Vec<char> = text.chars().collect();
     let mut out = Vec::new();
     let mut i = 0;
     while i < s.len() {
         let c = s[i];
+        if japanese::is_kana(c) {
+            let start = i;
+            while i < s.len() && japanese::is_kana(s[i]) {
+                i += 1;
+            }
+            out.push(s[start..i].iter().collect());
+            continue;
+        }
         if is_word_start(c) {
             let start = i;
             i += 1;
@@ -193,6 +203,14 @@ pub fn lyrics_to_syllables(text: &str, g2p: &impl WordSource) -> Vec<Syllable> {
                 let s = Syllable { text: "~".into(), onset: vec![], nucleus: prev.nucleus.clone(), coda: vec![], melisma: Some(true), word_end: prev.word_end, phrase_end: false };
                 out.push(s);
             }
+            continue;
+        }
+        if tok.chars().next().is_some_and(japanese::is_kana) {
+            let mut syls = japanese::kana_to_syllables(tok, out.last());
+            if let Some(last) = syls.last_mut() {
+                last.word_end = true;
+            }
+            out.append(&mut syls);
             continue;
         }
         // typed hyphens split syllables explicitly ("ti-ger"); otherwise the dictionary decides
