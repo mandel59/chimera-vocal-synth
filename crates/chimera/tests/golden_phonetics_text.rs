@@ -121,7 +121,10 @@ fn syllables_match_typescript() {
 fn songs_and_vowel_data_match_typescript() {
     let fx = load("phonetics-data");
     let mut f = Vec::new();
-    check("demo songs", &fx["songs"], songs::DEMO_SONGS, &mut f);
+    // the songs the TypeScript engine had; songs added since (the Japanese ones) have their own
+    // tests in japanese.rs
+    let n_ts = fx["songs"].as_array().unwrap().len();
+    check("demo songs", &fx["songs"], &songs::DEMO_SONGS[..n_ts], &mut f);
     check("vowel refs", &fx["vowels"], vowel_data::VOWELS, &mut f);
     report("data", 2, f);
 }

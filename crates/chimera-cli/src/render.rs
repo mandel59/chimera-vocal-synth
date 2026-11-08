@@ -53,7 +53,8 @@ fn slug(name: &str) -> String {
     let mut out = String::new();
     let mut run = false;
     for c in name.to_lowercase().chars() {
-        if c.is_ascii_lowercase() {
+        // letters of other scripts stay (さくらさくら), so Japanese song names don't all become "-"
+        if c.is_ascii_lowercase() || (!c.is_ascii() && c.is_alphanumeric()) {
             out.push(c);
             run = false;
         } else if !run {

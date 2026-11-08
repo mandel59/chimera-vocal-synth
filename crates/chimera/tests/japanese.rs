@@ -508,3 +508,21 @@ fn japanese_voiceless_stops_are_weakly_aspirated() {
     assert_eq!(r.len(), 2, "one per voice");
     assert!(r.iter().all(|(_, ms)| (15.0..=35.0).contains(ms)), "{r:?}");
 }
+
+#[test]
+fn the_japanese_demo_song_has_a_mora_per_note() {
+    let song = chimera::phonetics::songs::DEMO_SONGS.iter().find(|s| s.name == "きらきらぼし").expect("the demo song");
+    let syls = lyrics_to_syllables(song.lyrics, &word);
+    assert_eq!(syls.len(), song.notes.len(), "{:?}", syls.iter().map(|s| s.text.as_str()).collect::<Vec<_>>());
+    // a breath at each line's end: six phrases
+    assert_eq!(syls.iter().filter(|s| s.phrase_end).count(), 6);
+}
+
+#[test]
+fn sakura_sakura_has_a_mora_per_note() {
+    let song = chimera::phonetics::songs::DEMO_SONGS.iter().find(|s| s.name == "さくらさくら").expect("the demo song");
+    let syls = lyrics_to_syllables(song.lyrics, &word);
+    assert_eq!(syls.len(), song.notes.len(), "{:?}", syls.iter().map(|s| s.text.as_str()).collect::<Vec<_>>());
+    assert_eq!(syls.iter().filter(|s| s.phrase_end).count(), 9, "a breath after each of the nine phrases");
+    assert!(!song.lyrics.contains('は'), "the particle is written わ, as sung");
+}
