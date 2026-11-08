@@ -405,7 +405,7 @@ fn place_rank(place: &str) -> Option<u8> {
         "labiodental" => 1,
         "dental" => 2,
         "alveolar" => 3,
-        "postalveolar" => 4,
+        "postalveolar" | "alveolo-palatal" => 4,
         "retroflex" => 5,
         "palatal" => 6,
         "velar" => 7,
