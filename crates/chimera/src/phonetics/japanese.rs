@@ -8,8 +8,13 @@
 //!
 //! し ち じ are the alveolo-palatal ɕ tɕ dʑ (unrounded, unlike English sh ch j), and う is the
 //! unrounded ɯ.
+//!
+//! Speech ([`to_phrases`]) uses the same morae, timed evenly (Japanese is mora-timed). Vowels
+//! aren't devoiced (すき, です): dropping the vowel, the only voiceless vowel the planner can make,
+//! was heard as a missing mora. Pitch accent isn't modelled: each phrase falls.
 
-use super::{Segment, Syllable};
+use super::english::Phrase;
+use super::{Intonation, Segment, Syllable};
 
 /// A kana character, or ー, that starts or continues a run of Japanese lyrics.
 pub fn is_kana(c: char) -> bool {
@@ -230,4 +235,95 @@ pub fn kana_to_syllables(word: &str, prev: Option<&Syllable>) -> Vec<Syllable> {
         }
     }
     out
+}
+
+/// Whether text has kana in it, so it is read as Japanese.
+pub fn has_kana(text: &str) -> bool {
+    text.chars().any(|c| is_kana(c) && c != 'ー')
+}
+
+/// a spoken mora's vowel (s): with its consonant about four morae a second, slow and clear
+/// (Whisper's character error rate fell from 49 % at 0.085 s to 19 % here); the Speak panel's
+/// rate speeds it up
+const MORA_VOWEL: f64 = 0.17;
+/// a spoken ん (s)
+const MORA_N: f64 = 0.15;
+/// what ー adds to the vowel before it (s)
+const MORA_LONG: f64 = 0.1;
+/// a っ closure (s): a mora's worth of silence
+const MORA_GEMINATE: f64 = 0.09;
+
+fn is_speech_punct(c: char) -> bool {
+    matches!(c, '、' | '。' | '！' | '？' | ',' | '.' | '!' | '?' | '\n')
+}
+
+/// Kana text → spoken phrases, split at punctuation. Anything but kana (and ー) is skipped.
+pub fn to_phrases(text: &str) -> Vec<Phrase> {
+    let mut phrases = Vec::new();
+    let mut part = String::new();
+    for c in text.chars().chain(std::iter::once('\n')) {
+        if !is_speech_punct(c) {
+            part.push(c);
+            continue;
+        }
+        let words: Vec<String> = part.split(|c: char| !is_kana(c)).filter(|w| !w.is_empty()).map(str::to_string).collect();
+        part.clear();
+        if let Some(p) = phrase(&words, c) {
+            phrases.push(p);
+        }
+    }
+    // the text's end is no pause of its own: the last phrase keeps the one of its punctuation
+    phrases
+}
+
+fn phrase(words: &[String], delim: char) -> Option<Phrase> {
+    // the phrase's morae with the index of the word each ends
+    let mut syls: Vec<(Syllable, Option<usize>)> = Vec::new();
+    let mut said = Vec::new();
+    for w in words {
+        let mut s = kana_to_syllables(w, syls.last().map(|x| &x.0));
+        if s.is_empty() {
+            continue;
+        }
+        // a lone ー only lengthens the word before: no word of its own
+        if s.iter().all(|x| x.melisma == Some(true)) {
+            syls.extend(s.drain(..).map(|x| (x, None)));
+            continue;
+        }
+        let n = s.len();
+        syls.extend(s.drain(..).enumerate().map(|(i, x)| (x, (i + 1 == n).then_some(said.len()))));
+        said.push(w.clone());
+    }
+    if syls.is_empty() {
+        return None;
+    }
+    let mut segs: Vec<Segment> = Vec::new();
+    for (s, word_end) in &syls {
+        if s.melisma == Some(true) {
+            if let Some(v) = segs.iter_mut().rev().find(|x| x.stress == Some(1)) {
+                v.dur = Some(v.dur.unwrap_or(MORA_VOWEL) + MORA_LONG);
+            }
+        } else {
+            let vowel = matches!(s.nucleus.ipa.as_str(), "a" | "i" | "ɯ" | "e" | "o");
+            for c in &s.onset {
+                segs.push(Segment { ipa: c.ipa.clone(), stress: Some(0), ..Default::default() });
+            }
+            segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(if vowel { MORA_VOWEL } else { MORA_N }), stress: Some(1), ..Default::default() });
+            for c in &s.coda {
+                segs.push(Segment { ipa: c.ipa.clone(), dur: Some(MORA_GEMINATE), stress: Some(0), ..Default::default() });
+            }
+        }
+        if word_end.is_some()
+            && let Some(last) = segs.last_mut()
+        {
+            last.word_end = Some(true);
+        }
+    }
+    let pause = match delim {
+        '。' | '！' | '？' | '.' | '!' | '?' => 0.35,
+        '、' | ',' => 0.18,
+        _ => 0.3,
+    };
+    let intonation = if matches!(delim, '？' | '?') { Intonation::Question } else { Intonation::Statement };
+    Some(Phrase { segments: segs, intonation, pause, words: said })
 }

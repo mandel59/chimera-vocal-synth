@@ -129,7 +129,11 @@ impl EnglishG2P {
     }
 
     /// Text → phrases of segments.
+    /// Text with kana is read as Japanese ([`super::japanese::to_phrases`]).
     pub fn to_phrases(&self, text: &str) -> Vec<Phrase> {
+        if super::japanese::has_kana(text) {
+            return super::japanese::to_phrases(text);
+        }
         let mut phrases: Vec<Phrase> = Vec::new();
         let normalized = expand_numbers(&text.replace('’', "'"));
         // split on phrase punctuation, keeping the delimiter

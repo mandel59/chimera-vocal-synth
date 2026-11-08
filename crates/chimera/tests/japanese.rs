@@ -72,3 +72,49 @@ fn kanji_are_skipped_and_english_still_reads() {
     let s = lyrics_to_syllables("hi さ", &en);
     assert_eq!(s.iter().map(|s| s.text.as_str()).collect::<Vec<_>>(), ["hi", "さ"]);
 }
+
+// ---------------------------------------------------------------- speech
+use chimera::phonetics::english::EnglishG2P;
+
+/// a spoken text's phonemes, phrases split by "|"
+fn spoken(text: &str) -> String {
+    EnglishG2P::new().to_phrases(text).iter().map(|p| p.segments.iter().map(|s| s.ipa.as_str()).collect::<Vec<_>>().join(" ")).collect::<Vec<_>>().join(" | ")
+}
+
+#[test]
+fn kana_text_is_read_as_japanese() {
+    assert_eq!(spoken("きのう"), "k i n o ɯ");
+    assert_eq!(spoken("さくら、さくら。"), "s a k ɯ ɾ a | s a k ɯ ɾ a");
+}
+
+#[test]
+fn spoken_vowels_keep_their_voice() {
+    // dropping a devoiced vowel was heard as a missing mora (see japanese.rs)
+    assert_eq!(spoken("すき"), "s ɯ k i");
+    assert_eq!(spoken("です。"), "d e s ɯ");
+}
+
+#[test]
+fn a_long_mark_lengthens_the_spoken_vowel() {
+    let plain = &EnglishG2P::new().to_phrases("か")[0].segments[1];
+    let long = &EnglishG2P::new().to_phrases("かー")[0].segments[1];
+    assert!(long.dur.unwrap() > plain.dur.unwrap());
+}
+
+#[test]
+fn spoken_words_match_their_word_ends() {
+    for text in ["きょうわ いい てんき。", "すき、です？", "がっこう ー"] {
+        for p in EnglishG2P::new().to_phrases(text) {
+            let ends = p.segments.iter().filter(|s| s.word_end == Some(true)).count();
+            assert_eq!(ends, p.words.len(), "{text}");
+        }
+    }
+    let q = EnglishG2P::new().to_phrases("すき、です？");
+    assert_eq!(q.len(), 2);
+    assert_eq!(q[1].intonation, chimera::phonetics::Intonation::Question);
+}
+
+#[test]
+fn english_text_is_still_english() {
+    assert!(!spoken("hello").contains('ɯ'));
+}
