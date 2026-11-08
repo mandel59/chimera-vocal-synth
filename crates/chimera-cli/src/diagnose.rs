@@ -102,6 +102,7 @@ pub fn run(ctx: &Ctx, a: &[String]) -> Result<(), String> {
                 pause: Some(p.pause),
                 rate: p.rate,
                 register: p.register,
+                aspiration: p.aspiration,
             })
             .collect();
         let plan = plan_phrases(

@@ -183,6 +183,8 @@ export interface Phrase {
   rate?: number;
   /** the language's speaking pitch in semitones for a male and a female speaker (absent: 0) */
   register?: [number, number];
+  /** the language's aspiration of voiceless stops, scaling English's (absent: 1) */
+  aspiration?: number;
 }
 
 export interface Syllable {

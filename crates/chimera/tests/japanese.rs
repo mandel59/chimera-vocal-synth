@@ -207,7 +207,7 @@ use chimera::voice::human_voice::{HumanVoice, SourcePatch};
 const FS: f64 = 48000.0;
 
 fn speak(text: &str, body: HumanBody, name: &str, f0: f64) -> (chimera::phonetics::Plan, Vec<f32>) {
-    let inputs: Vec<PhraseInput> = EnglishG2P::new().to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register }).collect();
+    let inputs: Vec<PhraseInput> = EnglishG2P::new().to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register, aspiration: p.aspiration }).collect();
     let plan = plan_phrases(&inputs, &chimera::phonetics::planner::PlanOptions { body: name.into(), t0: 0.05, f0: Some(f0), ..Default::default() });
     let mut v = HumanVoice::new(FS, body, 2);
     v.set_source(&SourcePatch::f0(f0));
@@ -302,7 +302,7 @@ fn ru_is_a_tap_not_a_stop() {
 
 /// Morae per second of a spoken sentence at 1× (each vowel, ん and っ is a mora; a ー adds one).
 fn morae_per_second(text: &str) -> f64 {
-    let inputs: Vec<PhraseInput> = EnglishG2P::new().to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register }).collect();
+    let inputs: Vec<PhraseInput> = EnglishG2P::new().to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register, aspiration: p.aspiration }).collect();
     let morae = text.chars().filter(|c| chimera::phonetics::japanese::is_kana(*c) && !"ゃゅょぁぃぅぇぉゎ".contains(*c)).count();
     let plan = plan_phrases(&inputs, &chimera::phonetics::planner::PlanOptions { body: "female".into(), t0: 0.0, f0: Some(200.0), ..Default::default() });
     let speech: f64 = plan.segments.iter().map(|s| s.t1 - s.t0).sum();
@@ -325,7 +325,7 @@ fn english_with_dictionary() -> &'static EnglishG2P {
 
 /// Seconds from the first sound to the last at 1×, pauses between phrases included.
 fn spoken_length(g: &EnglishG2P, text: &str) -> f64 {
-    let inputs: Vec<PhraseInput> = g.to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register }).collect();
+    let inputs: Vec<PhraseInput> = g.to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register, aspiration: p.aspiration }).collect();
     let plan = plan_phrases(&inputs, &chimera::phonetics::planner::PlanOptions { body: "female".into(), t0: 0.0, f0: Some(200.0), ..Default::default() });
     plan.segments.last().unwrap().t1 - plan.segments[0].t0
 }
@@ -356,16 +356,42 @@ fn japanese_takes_as_long_as_the_same_words_in_english() {
     assert!((0.9..=1.1).contains(&ratio), "Japanese takes {ratio:.2}× as long as English");
 }
 
+/// The burst of the first stop `ipa` in a text: dB of the high-passed sound in the 3 ms after
+/// the tract really opens (from the voice's telemetry), absolute, so it doesn't move with the
+/// vowel after it.
+fn burst_db(text: &str, ipa: &str, body: HumanBody, name: &str, f0: f64) -> f64 {
+    use chimera::voice::human_voice::VoiceTelemetry;
+    let inputs: Vec<PhraseInput> = EnglishG2P::new().to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register, aspiration: p.aspiration }).collect();
+    let plan = plan_phrases(&inputs, &chimera::phonetics::planner::PlanOptions { body: name.into(), t0: 0.05, f0: Some(f0), ..Default::default() });
+    let mut v = HumanVoice::new(FS, body, 2);
+    v.set_source(&SourcePatch::f0(f0));
+    v.schedule(&plan.gestures);
+    let mut tele = VoiceTelemetry::default();
+    let (mut x, mut buf, mut opens) = (Vec::<f32>::new(), vec![0.0f32; 24], vec![]);
+    while (x.len() as f64) / FS < plan.end + 0.1 {
+        v.render(&mut buf);
+        x.extend_from_slice(&buf);
+        v.telemetry(&mut tele);
+        opens.push((x.len(), tele.or_areas.iter().chain(tele.ph_areas.iter()).fold(f32::INFINITY, |a, b| a.min(*b))));
+    }
+    let s = plan.segments.iter().find(|s| s.ipa == ipa).unwrap();
+    let c = opens.iter().position(|(n, o)| *n as f64 / FS > s.t0 && *o < 0.01).expect("a closure");
+    let r = opens[c..].iter().find(|(_, o)| *o > 0.02).expect("a release").0;
+    let n = (0.003 * FS) as usize;
+    10.0 * ((r..r + n).map(|j| ((x[j + 1] - x[j]) as f64).powi(2)).sum::<f64>() / n as f64 + 1e-20).log10()
+}
+
 #[test]
 fn kyo_has_an_audible_burst() {
     // heard 2026-11-09: the き of きょ＼ーわ at the start had a weak burst. As [k] + [j] the
-    // release went into the glide's narrowing and all but vanished; as one palatal [c] it
-    // releases into the vowel, its burst above the vowel's high band (the closure seals in both).
-    // Not compared with こ: the male velar burst is itself strong (+15 dB, like が's +19).
-    let kyo = release_excess("きょーわ。", "c");
-    println!("{kyo:?}");
-    assert_eq!(kyo.len(), 2, "one per voice");
-    assert!(kyo.iter().all(|(_, e)| *e > 0.0), "{kyo:?}");
+    // release went into the glide's narrowing and all but vanished (male about 50 dB under こ);
+    // as one palatal [c] it releases into the vowel. The male velar burst is itself strong (as
+    // が's was), so the palatal may stay some dB under it.
+    for (body, name, f0) in [(BODY_MALE, "male", 112.0), (BODY_FEMALE, "female", 205.0)] {
+        let (kyo, ko) = (burst_db("きょーわ。", "c", body, name, f0), burst_db("こーわ。", "k", body, name, f0));
+        println!("{name}: きょ {kyo:.1} dB, こ {ko:.1} dB");
+        assert!(kyo > ko - 12.0, "{name}: きょ {kyo:.1} dB against こ {ko:.1} dB");
+    }
 }
 
 #[test]
@@ -377,7 +403,7 @@ fn japanese_is_spoken_in_its_own_register() {
         let plan = plan_phrases(inputs, &chimera::phonetics::planner::PlanOptions { body: body.into(), t0: 0.0, f0: Some(200.0), ..Default::default() });
         plan.gestures.iter().filter_map(|g| g.targets.get(ControlKey::F0)).next().unwrap()
     };
-    let ja: Vec<PhraseInput> = EnglishG2P::new().to_phrases("さかな。").into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register }).collect();
+    let ja: Vec<PhraseInput> = EnglishG2P::new().to_phrases("さかな。").into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register, aspiration: p.aspiration }).collect();
     let plain: Vec<PhraseInput> = ja.iter().cloned().map(|p| PhraseInput { register: None, ..p }).collect();
     let [m, f] = chimera::phonetics::japanese::REGISTER;
     for (body, st) in [("male", m), ("female", f)] {
@@ -393,7 +419,7 @@ fn japanese_is_spoken_in_its_own_register() {
 /// by how long each holds), its language's register left out.
 fn mean_pitch_st(g: &EnglishG2P, text: &str, body: &str) -> f64 {
     use chimera::control::score::ControlKey;
-    let inputs: Vec<PhraseInput> = g.to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: None }).collect();
+    let inputs: Vec<PhraseInput> = g.to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: None, aspiration: p.aspiration }).collect();
     let plan = plan_phrases(&inputs, &chimera::phonetics::planner::PlanOptions { body: body.into(), t0: 0.0, f0: Some(100.0), ..Default::default() });
     let (mut sum, mut w) = (0.0, 0.0);
     for g in &plan.gestures {
@@ -436,4 +462,49 @@ fn japanese_and_english_intonation_sit_at_the_same_mean_pitch() {
         })
         .collect();
     assert!(gaps.iter().all(|(_, d)| d.abs() < 0.5), "Japanese minus English: {gaps:?}");
+}
+
+/// Voice onset time (ms) of each voiceless stop `ipa` in a text: from the release (the tract
+/// opening past 0.05 cm² after its closure) to the folds voicing again, from the voice's
+/// telemetry.
+fn vot_ms(text: &str, ipa: &str) -> Vec<(String, f64)> {
+    use chimera::voice::human_voice::VoiceTelemetry;
+    let mut out = vec![];
+    for (body, name, f0) in [(BODY_MALE, "male", 112.0), (BODY_FEMALE, "female", 205.0)] {
+        let inputs: Vec<PhraseInput> = EnglishG2P::new().to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate, register: p.register, aspiration: p.aspiration }).collect();
+        let plan = plan_phrases(&inputs, &chimera::phonetics::planner::PlanOptions { body: name.into(), t0: 0.05, f0: Some(f0), ..Default::default() });
+        let mut v = HumanVoice::new(FS, body, 2);
+        v.set_source(&SourcePatch::f0(f0));
+        v.schedule(&plan.gestures);
+        let mut tele = VoiceTelemetry::default();
+        let mut buf = vec![0.0f32; 48];
+        let mut track = vec![];
+        let mut t = 0.0;
+        while t < plan.end + 0.1 {
+            v.render(&mut buf);
+            t += 48.0 / FS;
+            v.telemetry(&mut tele);
+            let open = tele.or_areas.iter().chain(tele.ph_areas.iter()).fold(f32::INFINITY, |a, b| a.min(*b));
+            track.push((t, open, tele.voicing));
+        }
+        for s in plan.segments.iter().filter(|s| s.ipa == ipa) {
+            let closed = track.iter().position(|(t, o, _)| *t > s.t0 && *o < 0.01);
+            let Some(c) = closed else { continue };
+            let Some(r) = track[c..].iter().position(|(_, o, _)| *o > 0.05).map(|i| c + i) else { continue };
+            let Some(vo) = track[r..].iter().position(|(_, _, v)| *v > 0.5).map(|i| r + i) else { continue };
+            out.push((format!("{name} {ipa} at {:.2} s", s.t0), (track[vo].0 - track[r].0) * 1000.0));
+        }
+    }
+    out
+}
+
+#[test]
+fn japanese_voiceless_stops_are_weakly_aspirated() {
+    // asked 2026-11-09 about the か of 降るかも: its folds stayed apart 45 ms after the release,
+    // eating half the vowel. Japanese medial voiceless stops are weakly aspirated (about 20-35 ms
+    // for /k/, less for /p t/).
+    let r = vot_ms("ふるかも。", "k");
+    println!("{r:?}");
+    assert_eq!(r.len(), 2, "one per voice");
+    assert!(r.iter().all(|(_, ms)| (15.0..=35.0).contains(ms)), "{r:?}");
 }

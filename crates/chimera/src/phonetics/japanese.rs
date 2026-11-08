@@ -278,6 +278,10 @@ pub const TEMPO: f64 = 1.95;
 /// telephone speech; female speakers higher in Japanese than in English also in Ohara 1999 and
 /// Muta 1995; the men's results vary between studies). Small samples, so a modest split.
 pub const REGISTER: [f64; 2] = [-1.0, 1.5];
+/// Japanese voiceless stops are weakly aspirated, less than English ones: this scales how fast
+/// the folds close after the release (the planner keeps them apart through it). At 1 a medial か
+/// had about 52 ms from release to voicing, more than half its 87 ms vowel; at 0.3, 28 ms.
+pub const ASPIRATION: f64 = 0.3;
 /// a spoken mora's vowel (s, before [`TEMPO`])
 const MORA_VOWEL: f64 = 0.17;
 /// a spoken ん (s)
@@ -395,5 +399,5 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
         _ => 0.3,
     };
     let intonation = if matches!(delim, '？' | '?') { Intonation::Question } else { Intonation::Statement };
-    Some(Phrase { segments: segs, intonation, pause, words: said, rate: Some(TEMPO), register: Some(REGISTER) })
+    Some(Phrase { segments: segs, intonation, pause, words: said, rate: Some(TEMPO), register: Some(REGISTER), aspiration: Some(ASPIRATION) })
 }

@@ -99,6 +99,9 @@ pub struct Phrase {
     /// (English: none, 0)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub register: Option<[f64; 2]>,
+    /// the language's aspiration of voiceless stops (see `PlanOptions::aspiration`; English: none)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aspiration: Option<f64>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -174,7 +177,7 @@ impl EnglishG2P {
             };
             words.clear();
             if !segs.is_empty() {
-                phrases.push(Phrase { segments: segs, intonation: if q { Intonation::Question } else { Intonation::Statement }, pause, words: said, rate: None, register: None });
+                phrases.push(Phrase { segments: segs, intonation: if q { Intonation::Question } else { Intonation::Statement }, pause, words: said, rate: None, register: None, aspiration: None });
             }
         };
         for part in &parts {

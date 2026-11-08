@@ -146,8 +146,8 @@ export function plannedCounts(ipa: string[]): number[] {
   return call("plannedCounts", { ipa });
 }
 
-export function planPhrases(phrases: { segments: Segment[]; intonation?: "statement" | "question" | "flat"; pause?: number; rate?: number; register?: [number, number] }[], options: PlanOptions): Plan {
-  return call("planPhrases", { phrases: phrases.map((p) => ({ segments: p.segments, intonation: p.intonation, pause: p.pause, rate: p.rate, register: p.register })), options });
+export function planPhrases(phrases: { segments: Segment[]; intonation?: "statement" | "question" | "flat"; pause?: number; rate?: number; register?: [number, number]; aspiration?: number }[], options: PlanOptions): Plan {
+  return call("planPhrases", { phrases: phrases.map((p) => ({ segments: p.segments, intonation: p.intonation, pause: p.pause, rate: p.rate, register: p.register, aspiration: p.aspiration })), options });
 }
 
 export function planSong(notes: SungNote[], options: { body: BodyMix; bpm: number; t0: number; vibrato: number }): Plan {

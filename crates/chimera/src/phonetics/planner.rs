@@ -138,6 +138,10 @@ pub struct PlanOptions {
     /// fit short notes. Speech and live notes leave it unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sung: Option<bool>,
+    /// the language's aspiration of voiceless stops: scales how long the folds take to close
+    /// after the release (1, or unset: English)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aspiration: Option<f64>,
 }
 
 /// JS truthiness of an optional number (`if (s.f0)`: 0 and NaN are false).
@@ -311,8 +315,12 @@ pub fn plan_utterance(input: &[Segment], o: &PlanOptions) -> Plan {
             if def.manner == Manner::Stop || def.manner == Manner::Affricate {
                 // aspirated when syllable-initial before a vowel and not after /s/ (English-like)
                 let aspirated = next_vowel && !prev_seg.is_some_and(|p| p.ipa == "s");
+                // a language's aspiration scales how fast the folds close after the release; they
+                // stay apart through it, so the burst keeps its flow (closing them earlier cost a
+                // female [k] 7-10 dB of burst, her tract opening later than planned)
+                let asp = o.aspiration.unwrap_or(1.0);
                 let vot = if aspirated { 0.05 / rate } else { 0.012 };
-                gestures.push(Gesture::new(t0 + 0.25 * dur, t1 + vot * 0.4, 0.035, if aspirated { 0.045 } else { 0.02 }, 6.0, one(ControlKey::ABDUCTION, if aspirated { 0.36 } else { 0.22 })).label("aspiration"));
+                gestures.push(Gesture::new(t0 + 0.25 * dur, t1 + vot * 0.4, 0.035, if aspirated { 0.045 * asp } else { 0.02 }, 6.0, one(ControlKey::ABDUCTION, if aspirated { 0.36 } else { 0.22 })).label("aspiration"));
             } else {
                 gestures.push(Gesture::new(t0 - 0.015, t1 + 0.005, 0.03, 0.03, 6.0, one(ControlKey::ABDUCTION, 0.3)).label("voiceless"));
             }
@@ -525,6 +533,9 @@ pub struct PhraseInput {
     /// the language's speaking pitch, semitones for male and female (see `Phrase::register`)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub register: Option<[f64; 2]>,
+    /// the language's aspiration (see `PlanOptions::aspiration`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aspiration: Option<f64>,
 }
 
 /// Plan consecutive phrases (each with its own breath group and intonation) from t0.
@@ -536,7 +547,8 @@ pub fn plan_phrases(phrases: &[PhraseInput], o: &PlanOptions) -> Plan {
         let rate = p.rate.map_or(o.rate, |r| Some(o.rate.unwrap_or(1.0) * r));
         // the language's register: its male and female offsets, blended by the body
         let f0 = p.register.map_or(o.f0, |[m, f]| Some(o.f0.unwrap_or(110.0) * pow(2.0, (m + (f - m) * o.body.female) / 12.0)));
-        let plan = plan_utterance(&p.segments, &PlanOptions { t0: t, intonation: Some(p.intonation.unwrap_or(Intonation::Statement)), rate, f0, ..o.clone() });
+        let aspiration = p.aspiration.or(o.aspiration);
+        let plan = plan_utterance(&p.segments, &PlanOptions { t0: t, intonation: Some(p.intonation.unwrap_or(Intonation::Statement)), rate, f0, aspiration, ..o.clone() });
         all.gestures.extend_from_slice(&plan.gestures);
         all.segments.extend(plan.segments);
         t = plan.end + p.pause.unwrap_or(0.25);
