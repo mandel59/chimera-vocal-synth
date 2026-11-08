@@ -179,6 +179,8 @@ export interface Phrase {
   /** pause after the phrase (s) */
   pause: number;
   words: string[];
+  /** the language's tempo on top of the speaker's rate (absent: 1) */
+  rate?: number;
 }
 
 export interface Syllable {

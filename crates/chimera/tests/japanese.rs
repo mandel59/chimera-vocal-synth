@@ -172,3 +172,113 @@ fn the_planner_follows_a_given_pitch() {
     };
     assert!(peak("は＼し") > peak("はし"), "{} vs {}", peak("は＼し"), peak("はし"));
 }
+
+// ---------------------------------------------------------------- artifacts heard in あめがふる
+use chimera::anatomy::human::{BODY_FEMALE, BODY_MALE, HumanBody};
+use chimera::phonetics::planner::{PhraseInput, plan_phrases};
+use chimera::voice::human_voice::{HumanVoice, SourcePatch};
+
+const FS: f64 = 48000.0;
+
+fn speak(text: &str, body: HumanBody, name: &str, f0: f64) -> (chimera::phonetics::Plan, Vec<f32>) {
+    let inputs: Vec<PhraseInput> = EnglishG2P::new().to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate }).collect();
+    let plan = plan_phrases(&inputs, &chimera::phonetics::planner::PlanOptions { body: name.into(), t0: 0.05, f0: Some(f0), ..Default::default() });
+    let mut v = HumanVoice::new(FS, body, 2);
+    v.set_source(&SourcePatch::f0(f0));
+    v.schedule(&plan.gestures);
+    let mut out = vec![0.0f32; (FS * (plan.end + 0.3)).round() as usize];
+    for chunk in out.chunks_mut(128) {
+        v.render(chunk);
+    }
+    (plan, out)
+}
+
+/// How long (ms) the sound around the consonant `ipa` stays 20 dB under the following vowel's
+/// middle, in 2 ms RMS frames: the closure a listener hears.
+fn closure_ms(text: &str, ipa: &str) -> Vec<(String, f64)> {
+    let n = (0.002 * FS) as usize;
+    let rms = |x: &[f32], t0: f64, t1: f64| -> Vec<f64> {
+        let (a, b) = ((t0 * FS) as usize, ((t1 * FS) as usize).min(x.len()));
+        (a..b).step_by(n).map(|i| 10.0 * ((i..(i + n).min(x.len())).map(|j| (x[j] as f64).powi(2)).sum::<f64>() / n as f64 + 1e-20).log10()).collect()
+    };
+    let mut out = vec![];
+    for (body, name, f0) in [(BODY_MALE, "male", 112.0), (BODY_FEMALE, "female", 205.0)] {
+        let (plan, x) = speak(text, body, name, f0);
+        let segs = &plan.segments;
+        for (i, s) in segs.iter().enumerate().filter(|(_, s)| s.ipa == ipa) {
+            let Some(v) = segs.get(i + 1) else { continue };
+            let mut vowel = rms(&x, v.t0 + 0.3 * (v.t1 - v.t0), v.t0 + 0.7 * (v.t1 - v.t0));
+            vowel.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let floor = vowel[vowel.len() / 2] - 20.0;
+            let low = rms(&x, s.t0 - 0.04, v.t0 + 0.04).iter().filter(|e| **e < floor).count();
+            out.push((format!("{name} {ipa}{} at {:.2} s", v.ipa, s.t0), 2.0 * low as f64));
+        }
+    }
+    out
+}
+
+#[test]
+fn ru_is_a_tap_not_a_stop() {
+    // heard 2026-11-09: the る of あめがふる sounds like ドゥ. What tells a tap from [d] is
+    // mostly the closure's length: a tap touches for 10-30 ms, a [d] holds 50 ms or more.
+    let r = closure_ms("あめがふる。", "ɾ");
+    println!("{r:?}");
+    assert_eq!(r.len(), 2, "one per voice");
+    assert!(r.iter().all(|(_, ms)| *ms <= 30.0), "{r:?}");
+}
+
+/// Morae per second of a spoken sentence at 1× (each vowel, ん and っ is a mora; a ー adds one).
+fn morae_per_second(text: &str) -> f64 {
+    let inputs: Vec<PhraseInput> = EnglishG2P::new().to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate }).collect();
+    let morae = text.chars().filter(|c| chimera::phonetics::japanese::is_kana(*c) && !"ゃゅょぁぃぅぇぉゎ".contains(*c)).count();
+    let plan = plan_phrases(&inputs, &chimera::phonetics::planner::PlanOptions { body: "female".into(), t0: 0.0, f0: Some(200.0), ..Default::default() });
+    let speech: f64 = plan.segments.iter().map(|s| s.t1 - s.t0).sum();
+    morae as f64 / speech
+}
+
+fn english_with_dictionary() -> &'static EnglishG2P {
+    static G: std::sync::OnceLock<EnglishG2P> = std::sync::OnceLock::new();
+    G.get_or_init(|| {
+        use std::io::Read;
+        let path = format!("{}/../../public/data/cmudict.txt.gz", env!("CARGO_MANIFEST_DIR"));
+        let gz = std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
+        let mut text = String::new();
+        flate2::read::GzDecoder::new(&gz[..]).read_to_string(&mut text).unwrap();
+        let mut g = EnglishG2P::new();
+        g.load_dict(&text);
+        g
+    })
+}
+
+/// Seconds from the first sound to the last at 1×, pauses between phrases included.
+fn spoken_length(g: &EnglishG2P, text: &str) -> f64 {
+    let inputs: Vec<PhraseInput> = g.to_phrases(text).into_iter().map(|p| PhraseInput { segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause), rate: p.rate }).collect();
+    let plan = plan_phrases(&inputs, &chimera::phonetics::planner::PlanOptions { body: "female".into(), t0: 0.0, f0: Some(200.0), ..Default::default() });
+    plan.segments.last().unwrap().t1 - plan.segments[0].t0
+}
+
+#[test]
+fn japanese_takes_as_long_as_the_same_words_in_english() {
+    // asked 2026-11-09: at 1× a sentence and its translation take about as long, so the tempo
+    // of each language feels the same at any rate
+    let pairs = [
+        ("It is raining.", "あめが ふって います。"),
+        ("Good morning. How are you?", "おはよう ございます。おげんき ですか？"),
+        ("The weather is nice today.", "きょうわ いい てんき ですね。"),
+        ("I want to drink a cup of tea.", "おちゃを いっぱい のみたいです。"),
+        ("Where is the station?", "えきわ どこ ですか？"),
+        ("Thank you very much for your help.", "てつだって くれて ほんとうに ありがとう。"),
+        ("My younger brother is playing in the park.", "おとうとが こうえんで あそんで います。"),
+        ("Please wait a moment.", "すこし まって ください。"),
+    ];
+    let g = english_with_dictionary();
+    let mut log_sum = 0.0;
+    for (en, ja) in pairs {
+        let (e, j) = (spoken_length(g, en), spoken_length(g, ja));
+        println!("{:.2} s / {:.2} s = {:.2}  ({:.1} morae/s)  {en} / {ja}", j, e, j / e, morae_per_second(ja));
+        log_sum += (j / e).ln();
+    }
+    let ratio = (log_sum / pairs.len() as f64).exp();
+    println!("geometric mean Japanese / English: {ratio:.3}");
+    assert!((0.9..=1.1).contains(&ratio), "Japanese takes {ratio:.2}× as long as English");
+}

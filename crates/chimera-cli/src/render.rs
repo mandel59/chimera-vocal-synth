@@ -160,6 +160,7 @@ pub fn text(ctx: &Ctx, a: &[String]) -> Result<(), String> {
             segments: p.segments.clone(),
             intonation: Some(p.intonation),
             pause: Some(p.pause),
+            rate: p.rate,
         })
         .collect();
     let plan = plan_phrases(

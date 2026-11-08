@@ -247,9 +247,14 @@ pub fn has_kana(text: &str) -> bool {
     text.chars().any(|c| is_kana(c) && c != 'ー')
 }
 
-/// a spoken mora's vowel (s): with its consonant about four morae a second, slow and clear
-/// (Whisper's character error rate fell from 49 % at 0.085 s to 19 % here); the Speak panel's
-/// rate speeds it up
+/// Japanese tempo against the planner's (English) timing: every duration below, and the
+/// consonants' from the planner's rules, is divided by it (the phrase's `rate`). Set so that a
+/// sentence and its English translation take about as long at 1× (tested on eight pairs: the
+/// geometric mean of the ratio is 1.0), which comes to about nine morae a second. The duration
+/// ratios below were tuned slow; scaling them all keeps consonants short with the vowels, which
+/// sounded clearer than shortening the vowels alone.
+pub const TEMPO: f64 = 1.95;
+/// a spoken mora's vowel (s, before [`TEMPO`])
 const MORA_VOWEL: f64 = 0.17;
 /// a spoken ん (s)
 const MORA_N: f64 = 0.15;
@@ -359,5 +364,5 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
         _ => 0.3,
     };
     let intonation = if matches!(delim, '？' | '?') { Intonation::Question } else { Intonation::Statement };
-    Some(Phrase { segments: segs, intonation, pause, words: said })
+    Some(Phrase { segments: segs, intonation, pause, words: said, rate: Some(TEMPO) })
 }

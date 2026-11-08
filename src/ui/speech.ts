@@ -48,10 +48,10 @@ export function ipaToPhrases(text: string): Phrase[] {
 }
 
 export function transcribe(phrases: { segments: Segment[]; intonation?: string }[]): string {
-  return phrases.map((p) => p.segments.map((s) => (s.stress === 1 ? "ˈ" : s.stress === 2 ? "ˌ" : "") + s.ipa + (s.wordEnd ? " " : "")).join("").trim() + (p.intonation === "question" ? "?" : "")).join(" | ");
+  return phrases.map((p) => p.segments.map((s) => (s.pitch !== undefined ? "" : s.stress === 1 ? "ˈ" : s.stress === 2 ? "ˌ" : "") + s.ipa + (s.wordEnd ? " " : "")).join("").trim() + (p.intonation === "question" ? "?" : "")).join(" | ");
 }
 
-export function speakPhrases(phrases: { segments: Segment[]; intonation?: "statement" | "question" | "flat"; pause?: number; words?: string[] }[], o: { body: BodyMix; rate: number; f0: number }): SpokenPlan {
+export function speakPhrases(phrases: { segments: Segment[]; intonation?: "statement" | "question" | "flat"; pause?: number; words?: string[]; rate?: number }[], o: { body: BodyMix; rate: number; f0: number }): SpokenPlan {
   const plan = planPhrases(phrases, { body: o.body, t0: 0, rate: o.rate, f0: o.f0 });
   const id = engine.schedule({ gestures: plan.gestures.map((g: Gesture) => ({ ...g, targets: { ...g.targets } })), segments: plan.segments, end: plan.end });
   current = { plan, offset: null, id, transcription: transcribe(phrases), words: wordSpans(phrases, plan) };

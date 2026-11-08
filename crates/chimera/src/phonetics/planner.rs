@@ -516,6 +516,9 @@ pub struct PhraseInput {
     pub intonation: Option<Intonation>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pause: Option<f64>,
+    /// the language's tempo, multiplying `PlanOptions::rate` (see `Phrase::rate`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rate: Option<f64>,
 }
 
 /// Plan consecutive phrases (each with its own breath group and intonation) from t0.
@@ -524,7 +527,8 @@ pub fn plan_phrases(phrases: &[PhraseInput], o: &PlanOptions) -> Plan {
     let mut all = Plan { gestures: Vec::new(), segments: Vec::new(), end: o.t0 };
     let mut t = o.t0;
     for p in phrases {
-        let plan = plan_utterance(&p.segments, &PlanOptions { t0: t, intonation: Some(p.intonation.unwrap_or(Intonation::Statement)), ..o.clone() });
+        let rate = p.rate.map_or(o.rate, |r| Some(o.rate.unwrap_or(1.0) * r));
+        let plan = plan_utterance(&p.segments, &PlanOptions { t0: t, intonation: Some(p.intonation.unwrap_or(Intonation::Statement)), rate, ..o.clone() });
         all.gestures.extend_from_slice(&plan.gestures);
         all.segments.extend(plan.segments);
         t = plan.end + p.pause.unwrap_or(0.25);

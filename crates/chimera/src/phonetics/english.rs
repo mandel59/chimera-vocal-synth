@@ -90,6 +90,10 @@ pub struct Phrase {
     pub pause: f64,
     /// the words said, one per word end in `segments`
     pub words: Vec<String>,
+    /// the language's tempo: its durations are divided by this on top of the speaker's rate, so
+    /// 1× is a natural pace in every language (English: none, 1)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rate: Option<f64>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -165,7 +169,7 @@ impl EnglishG2P {
             };
             words.clear();
             if !segs.is_empty() {
-                phrases.push(Phrase { segments: segs, intonation: if q { Intonation::Question } else { Intonation::Statement }, pause, words: said });
+                phrases.push(Phrase { segments: segs, intonation: if q { Intonation::Question } else { Intonation::Statement }, pause, words: said, rate: None });
             }
         };
         for part in &parts {
