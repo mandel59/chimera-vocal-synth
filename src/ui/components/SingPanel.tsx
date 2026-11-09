@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store.ts";
-import { useSing, playDemo, stopSinging, soundingSyllable, sungNow, DEMO_SONGS, ensureDictionary } from "../singing.ts";
+import { useSing, playDemo, stopSinging, soundingSyllable, sungNow, DEMO_SONGS, playScore, openScore, ensureDictionary } from "../singing.ts";
 import { mouthWords } from "../mouthWords.ts";
 import { V } from "../colors.ts";
 import { Keys, MidiButton } from "./Keys.tsx";
@@ -9,6 +9,7 @@ import { Menu } from "./Controls.tsx";
 import { PianoRoll } from "./PianoRoll.tsx";
 import { SpectrumView } from "./SpectrumView.tsx";
 import { Chip, Screen } from "./Screen.tsx";
+import { LanguageSelect } from "./Controls.tsx";
 import { EncoderPages } from "./Encoder.tsx";
 import { noteName } from "./VoiceControls.tsx";
 import type { InfoFn } from "./AnatomyView.tsx";
@@ -38,16 +39,33 @@ export const singInfo: InfoFn = (_m, _f, tele) => {
 
 function Lyrics() {
   const lyrics = useSing((s) => s.lyrics);
+  const language = useSing((s) => s.language);
+  const setLanguage = useSing((s) => s.setLanguage);
   const syllables = useSing((s) => s.syllables);
   const cursor = useSing((s) => s.cursor);
   const demo = useSing((s) => s.demo);
   const demoAt = useSing((s) => s.demoAt);
   const setLyrics = useSing((s) => s.setLyrics);
   const setCursor = useSing((s) => s.setCursor);
+  const scoreError = useSing((s) => s.scoreError);
+  const body = useStore((s) => s.body);
+  const start = useStore((s) => s.start);
   const at = demo ? demoAt : -1;
   const done = demo ? demoAt : cursor;
   return (
-    <div className="lyrics">
+    <div
+      className="lyrics"
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) e.preventDefault();
+      }}
+      onDrop={(e) => {
+        const file = e.dataTransfer.files[0];
+        if (!file) return;
+        e.preventDefault();
+        void openScore(file, body, start);
+      }}
+    >
+      <LanguageSelect value={language} onChange={setLanguage} />
       <textarea
         value={lyrics}
         onChange={(e) => setLyrics(e.target.value)}
@@ -58,6 +76,11 @@ function Lyrics() {
         title="Each note sings the next syllable. Hold a key while you press the next one to sing legato. A lone “-” between words holds a vowel over several notes; hyphens split a word your way (“ti-ger”)."
       />
       <div className="syllables" role="group" aria-label="Syllables. Each note sings the marked one; choose another to start there.">
+        {scoreError && (
+          <span className="score-error" role="alert">
+            {scoreError}
+          </span>
+        )}
         {syllables.map((s, i) => (
           <span key={i} className={`syl-wrap${s.wordEnd ? " word-end" : ""}`}>
             <button
@@ -122,6 +145,8 @@ function SongControls() {
 function SingActions() {
   const start = useStore((s) => s.start);
   const demo = useSing((s) => s.demo);
+  const score = useSing((s) => s.score);
+  const file = useRef<HTMLInputElement>(null);
   const [song, setSong] = useState(DEMO_SONGS[0].name);
   const [pending, setPending] = useState(false);
   const request = useRef(0);
@@ -134,7 +159,7 @@ function SingActions() {
   const sing = (name: string) => {
     const n = ++request.current;
     setPending(true);
-    playDemo(name, useStore.getState().body, ready)
+    (name === score?.title ? playScore(useStore.getState().body, ready) : playDemo(name, useStore.getState().body, ready))
       .catch(() => {})
       .finally(() => request.current === n && setPending(false));
   };
@@ -151,10 +176,34 @@ function SingActions() {
         label="Song"
         icon="note"
         value={demo ?? song}
-        options={DEMO_SONGS.map((s) => ({ value: s.name, label: s.name }))}
+        options={[...DEMO_SONGS.map((s) => ({ value: s.name, label: s.name })), ...(score ? [{ value: score.title, label: score.title }] : [])]}
         onChange={(name) => {
           setSong(name);
           if (demo || pending) sing(name);
+        }}
+      />
+      <Chip toggle={false} onClick={() => file.current?.click()} title="Open a MusicXML score from this device">
+        Open MusicXML
+      </Chip>
+      <input
+        ref={file}
+        type="file"
+        accept=".musicxml,.xml,.mxl,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) {
+            const n = ++request.current;
+            setPending(true);
+            void openScore(f, useStore.getState().body, ready)
+              .then(() => {
+                const loaded = useSing.getState().score;
+                if (loaded) setSong(loaded.title);
+              })
+              .catch(() => {})
+              .finally(() => request.current === n && setPending(false));
+          }
         }}
       />
     </ActionBar>

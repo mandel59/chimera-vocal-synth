@@ -165,6 +165,8 @@ export interface Segment {
   palatalized?: boolean;
   /** breathy voice: a voiced stop or affricate's release (IPA ʱ), or a vowel (combining diaeresis below) */
   breathy?: boolean;
+  /** speech pitch relative to the phrase's base, in place of stress accents (Japanese) */
+  pitch?: number;
 }
 
 export interface PlannedSegment {
@@ -181,10 +183,23 @@ export interface Plan {
   end: number;
 }
 
-export interface Phrase {
+export type Language = "en" | "ja";
+
+export interface PhraseInput {
   segments: Segment[];
-  intonation: "statement" | "question";
+  intonation?: "statement" | "question" | "flat";
   /** pause after the phrase (s) */
+  pause?: number;
+  /** the language's tempo on top of the speaker's rate (absent: 1) */
+  rate?: number;
+  /** the language's speaking pitch in semitones for a male and a female speaker (absent: 0) */
+  register?: [number, number];
+  /** the language's aspiration of voiceless stops, scaling English's (absent: 1) */
+  aspiration?: number;
+}
+
+export interface Phrase extends PhraseInput {
+  intonation: "statement" | "question" | "flat";
   pause: number;
   words: string[];
 }
