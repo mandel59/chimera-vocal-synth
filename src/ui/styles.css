@@ -2130,6 +2130,12 @@ input[type="range"]::-moz-range-thumb {
   font-size: 9px;
 }
 
+.score-error {
+  flex-basis: 100%;
+  color: var(--red);
+  font-size: 11px;
+}
+
 .lyrics {
   padding: 6px 14px 10px;
   display: grid;
