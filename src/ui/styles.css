@@ -2137,6 +2137,28 @@ input[type="range"]::-moz-range-thumb {
   font-size: 9px;
 }
 
+.language-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.language-select select {
+  background: var(--inset);
+  color: var(--text);
+  border: 1px solid var(--frame);
+  font: inherit;
+  padding: 4px 6px;
+}
+
+.score-error {
+  flex-basis: 100%;
+  color: var(--red);
+  font-size: 11px;
+}
+
 .lyrics {
   padding: 6px 14px 10px;
   display: grid;

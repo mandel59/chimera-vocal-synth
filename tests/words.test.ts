@@ -70,3 +70,17 @@ describe("the trail at the mouth", () => {
     expect(t.entries.map((e) => e.word.key)).toEqual(["b"]);
   });
 });
+
+describe("sung syllables as written", () => {
+  test("English hyphenates inside a word, Japanese is written a mora at a time", async () => {
+    const { writtenSyllable } = await import("../src/show/words.ts");
+    const { lyricsToSyllables } = await import("../src/wasm/engine.ts");
+    const shown = (text: string) => lyricsToSyllables(text).map((s) => writtenSyllable(s.text, s.wordEnd));
+    expect(writtenSyllable("Twin", false)).toBe("Twin-");
+    expect(writtenSyllable("kle", true)).toBe("kle");
+    // asked 2026-11-09: no hyphens in Japanese lyrics
+    expect(shown("さくら さくら")).toEqual(["さ", "く", "ら", "さ", "く", "ら"]);
+    expect(shown("きょうわ")).toEqual(["きょ", "う", "わ"]);
+    expect(shown("サクラ")).toEqual(["サ", "ク", "ラ"]);
+  });
+});
