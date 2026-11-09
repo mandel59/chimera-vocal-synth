@@ -85,6 +85,13 @@ async function run(viewport: { width: number; height: number }, tag: string) {
   // speak mode
   await page.getByRole("radio", { name: "Speak" }).click();
   await page.waitForTimeout(200);
+  await page.getByLabel("Language", { exact: true }).selectOption("en");
+  // The Dental fricative cell has four symbols; at the 600 px minimum table width they must wrap.
+  const escapedIpa = await page.locator(".ipa-chart button.ipa").evaluateAll((buttons) => buttons.filter((button) => {
+    const cell = button.closest("td")!.getBoundingClientRect(), r = button.getBoundingClientRect();
+    return r.left < cell.left - 1 || r.right > cell.right + 1;
+  }).map((button) => button.textContent));
+  if (escapedIpa.length) errors.push(`[${tag}] IPA symbols spill outside their cells: ${escapedIpa.join(", ")}`);
   await page.getByRole("button", { name: /^Speak$/ }).click();
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${outDir}/${tag}-3-speak.png`, fullPage: true });
@@ -123,6 +130,7 @@ async function run(viewport: { width: number; height: number }, tag: string) {
   // sing mode: a key sings the marked syllable and moves the cursor; legato; a demo song
   await page.getByRole("radio", { name: "Sing" }).click();
   await page.waitForTimeout(600);
+  await page.getByLabel("Language", { exact: true }).selectOption("en");
   const rms = () =>
     page.evaluate(() => {
       // @ts-expect-error debug handle

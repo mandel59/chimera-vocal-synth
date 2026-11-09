@@ -1973,6 +1973,13 @@ input[type="range"]::-moz-range-thumb {
   height: 18px;
 }
 
+/* Some cells have two voiced/unvoiced pairs; keep them inside the 600 px chart. */
+.ipa-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-items: center;
+}
+
 .ipa-chart button.ipa {
   background: transparent;
   border: 0;

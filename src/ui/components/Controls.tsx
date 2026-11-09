@@ -6,7 +6,7 @@ export function LanguageSelect(props: { value?: Language; onChange: (value?: Lan
   return (
     <label className="language-select" htmlFor={id}>
       Language
-      <select id={id} value={props.value ?? "auto"} disabled={props.disabled} onChange={(e) => props.onChange(e.target.value === "auto" ? undefined : e.target.value as Language)}>
+      <select id={id} aria-label="Language" value={props.value ?? "auto"} disabled={props.disabled} onChange={(e) => props.onChange(e.target.value === "auto" ? undefined : e.target.value as Language)}>
         <option value="auto">Auto</option>
         <option value="en">English</option>
         <option value="ja">Japanese</option>
