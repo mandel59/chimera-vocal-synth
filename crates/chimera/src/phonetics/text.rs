@@ -72,6 +72,15 @@ mod tests {
     }
 
     #[test]
+    fn japanese_punctuation_does_not_change_the_english_lyric_entry() {
+        let g = EnglishG2P::new();
+        let english = lyrics_to_syllables("hello。", Some(Language::English), &g);
+        assert!(!english.last().unwrap().phrase_end);
+        let japanese = lyrics_to_syllables("さくら。", Some(Language::Japanese), &g);
+        assert!(japanese.last().unwrap().phrase_end);
+    }
+
+    #[test]
     fn language_codes_are_explicit_and_unknown_languages_are_errors() {
         assert_eq!("ja-JP".parse::<Language>().unwrap(), Language::Japanese);
         assert_eq!(serde_json::from_str::<Language>("\"en-US\"").unwrap(), Language::English);

@@ -145,8 +145,8 @@ impl<F: Fn(&str, bool) -> Vec<Segment>> WordSource for F {
     }
 }
 
-fn is_lyric_punct(c: char) -> bool {
-    matches!(c, '.' | ',' | ';' | ':' | '!' | '?' | '\n' | '、' | '。' | '！' | '？')
+fn is_lyric_punct(c: char, kana: bool) -> bool {
+    matches!(c, '.' | ',' | ';' | ':' | '!' | '?' | '\n') || kana && matches!(c, '、' | '。' | '！' | '？')
 }
 fn is_word_start(c: char) -> bool {
     c.is_ascii_alphabetic() || c == '\''
@@ -178,7 +178,7 @@ fn lyric_tokens(text: &str, kana: bool) -> Vec<String> {
             continue;
         }
         let melisma = (c == '~' || c == '-') && (i == 0 || js_is_space(s[i - 1])) && (i + 1 == s.len() || js_is_space(s[i + 1]));
-        if melisma || is_lyric_punct(c) {
+        if melisma || is_lyric_punct(c, kana) {
             out.push(c.to_string());
         }
         i += 1;
@@ -197,7 +197,7 @@ pub(crate) fn lyrics_with_kana(text: &str, g2p: &impl WordSource, kana: bool) ->
     // words, melisma marks and phrase punctuation, in order
     let tokens = lyric_tokens(&text.replace('’', "'"), kana);
     for tok in &tokens {
-        if tok.chars().count() == 1 && tok.chars().all(is_lyric_punct) {
+        if tok.chars().count() == 1 && tok.chars().all(|c| is_lyric_punct(c, kana)) {
             if let Some(last) = out.last_mut() {
                 last.phrase_end = true;
             }
