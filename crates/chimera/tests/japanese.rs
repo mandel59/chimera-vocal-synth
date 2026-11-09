@@ -45,10 +45,10 @@ fn moraic_nasal_takes_the_next_place() {
     assert_eq!(show("さんぽ"), "さ:s.a. ん:.m. ぽ:p.o.");
     assert_eq!(show("かんだ"), "か:k.a. ん:.n. だ:d.a.");
     assert_eq!(show("りんご"), "り:ɾ.i. ん:.ŋ. ご:g.o.");
-    assert_eq!(show("ほん"), "ほ:h.o. ん:.ɴ.");
-    // a fricative, glide or vowel after it: no closure (the sung hum here)
-    assert_eq!(show("あんしん"), "あ:.a. ん:.ɴ. し:ɕ.i. ん:.ɴ.");
-    assert_eq!(show("でんわ"), "で:d.e. ん:.ɴ. わ:w.a.");
+    assert_eq!(show("ほん"), "ほ:h.o. ん:.ɰ̃.");
+    // a fricative, glide or vowel after it: no closure, the nasal vowel (sung as spoken)
+    assert_eq!(show("あんしん"), "あ:.a. ん:.ɰ̃. し:ɕ.i. ん:.ɰ̃.");
+    assert_eq!(show("でんわ"), "で:d.e. ん:.ɰ̃. わ:w.a.");
 }
 
 #[test]
@@ -525,4 +525,36 @@ fn sakura_sakura_has_a_mora_per_note() {
     assert_eq!(syls.len(), song.notes.len(), "{:?}", syls.iter().map(|s| s.text.as_str()).collect::<Vec<_>>());
     assert_eq!(syls.iter().filter(|s| s.phrase_end).count(), 9, "a breath after each of the nine phrases");
     assert!(!song.lyrics.contains('は'), "the particle is written わ, as sung");
+}
+
+use chimera::phonetics::sing::{SongOptions, SungNote, midi_to_hz, plan_song};
+
+/// dB RMS of the last `secs` of the final held note of `lyrics` sung on `notes`.
+fn held_end_db(lyrics: &str, notes: &[[f64; 2]], body: HumanBody, name: &str) -> f64 {
+    let syl = lyrics_to_syllables(lyrics, &word);
+    let notes: Vec<SungNote> = notes.iter().zip(&syl).map(|(n, s)| SungNote { midi: n[0], beats: n[1], syl: s.clone() }).collect();
+    let mut v = HumanVoice::new(FS, body, 2);
+    v.set_source(&SourcePatch { f0: Some(midi_to_hz(notes[0].midi)), voiced: Some(true), pressure: Some(9.0), tension: Some(0.55), ..Default::default() });
+    let plan = plan_song(&notes, &SongOptions { body: name.into(), bpm: 76.0, t0: 0.3, vibrato: 35.0 });
+    v.schedule(&plan.gestures);
+    let mut out = vec![0.0f32; (FS * (plan.end + 0.3)).round() as usize];
+    for chunk in out.chunks_mut(128) {
+        v.render(chunk);
+    }
+    let end = (FS * (plan.end - 0.4)) as usize;
+    let x = &out[end - (FS * 1.0) as usize..end];
+    10.0 * (x.iter().map(|&s| (s as f64).powi(2)).sum::<f64>() / x.len() as f64).log10()
+}
+
+#[test]
+fn a_held_final_n_is_sung_out_loud() {
+    // asked 2026-11-09: the last ん of さくらさくら (みにゆかん) sounded stuffed and inaudible. It
+    // was a closed [ɴ], 18 dB under the same note sung on あ; the nasal vowel ɰ̃ sings 6-8 under.
+    let notes = [[65.0, 1.0], [65.0, 1.0], [64.0, 3.0]];
+    for (body, name, octave) in [(BODY_MALE, "male", 0.0), (BODY_FEMALE, "female", 12.0)] {
+        let notes = notes.map(|[m, b]| [m + octave, b]);
+        let n = held_end_db("ゆかん。", &notes, body, name);
+        let a = held_end_db("ゆかあ。", &notes, body, name);
+        assert!(a - n < 12.0, "{name}: ん {n:.1} dB, あ {a:.1} dB");
+    }
 }

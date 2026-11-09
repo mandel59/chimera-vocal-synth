@@ -4,8 +4,9 @@
 //!  - ー holds the previous vowel onto the next note (a melisma, like "-").
 //!  - ん is a mora of its own, a nasal sung on its note, closed where the next stop or nasal is
 //!    made (m before p b m, n before t d n ts dz ɾ, ɲ before tɕ dʑ, ŋ before k g). Before a vowel,
-//!    a glide, a fricative, h, or at the end, it doesn't close: spoken, it is the nasal vowel ɰ̃
-//!    (本, 単位, 安心, 電話); sung, the closed hum ɴ, which holds a note.
+//!    a glide, a fricative, h, or at the end, it doesn't close: it is the nasal vowel ɰ̃ (本, 単位,
+//!    安心, 電話), spoken or sung. A closed [ɴ] held on a note radiated through the nose alone and
+//!    sang 18-20 dB under a vowel, heard as a stuffed nose.
 //!  - っ takes no note: it closes the mora before it on the next consonant (かった → ka-t | ta).
 //!
 //! し ち じ are the alveolo-palatal ɕ tɕ dʑ (unrounded, unlike English sh ch j), う is the
@@ -199,15 +200,15 @@ fn next_consonant(ms: &[Mora], from: usize) -> Option<&'static str> {
     })?
 }
 
-/// ん before a stop, affricate or nasal closes where it does; anywhere else it is ɴ here (the
-/// sung hum; speech makes it the nasal vowel ɰ̃).
+/// ん before a stop, affricate or nasal closes where it does; anywhere else it is the nasal
+/// vowel ɰ̃.
 fn moraic_nasal(next: Option<&str>) -> &'static str {
     match next {
         Some("p" | "b" | "m") => "m",
         Some("t" | "d" | "n" | "ts" | "dz" | "ɾ") => "n",
         Some("tɕ" | "dʑ" | "c" | "ɟ" | "ɲ") => "ɲ",
         Some("k" | "g") => "ŋ",
-        _ => "ɴ",
+        _ => "ɰ̃",
     }
 }
 
@@ -380,9 +381,7 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
             for c in &s.onset {
                 segs.push(Segment { ipa: c.ipa.clone(), stress: Some(0), ..Default::default() });
             }
-            // a spoken ん that doesn't close is a nasal vowel, not the sung hum
-            let ipa = if s.nucleus.ipa == "ɴ" { "ɰ̃".to_string() } else { s.nucleus.ipa.clone() };
-            segs.push(Segment { ipa, dur: Some(if vowel { MORA_VOWEL } else { MORA_N }), stress: Some(1), pitch: Some(*pitch), ..Default::default() });
+            segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(if vowel { MORA_VOWEL } else { MORA_N }), stress: Some(1), pitch: Some(*pitch), ..Default::default() });
             for c in &s.coda {
                 segs.push(Segment { ipa: c.ipa.clone(), dur: Some(MORA_GEMINATE), stress: Some(0), ..Default::default() });
             }
