@@ -5,6 +5,14 @@
 import type { Syllable } from "../wasm/types.ts";
 import type { MouthWord } from "../ui/mouthWords.ts";
 
+/**
+ * How a sung syllable is written: with a hyphen when its word goes on ("Twin-"), as English
+ * lyrics are set. Japanese is set a mora at a time and never hyphenated (さ く ら).
+ */
+export function writtenSyllable(text: string, wordEnd: boolean): string {
+  return wordEnd || /[\u3041-\u30FF]/.test(text) ? text : text + "-";
+}
+
 /** a melody file: `{"bpm", "t0"?, "lyrics", "notes": [[midi, beats], ...]}` (midi <= 0 is a rest) */
 export interface Melody {
   bpm: number;
@@ -41,7 +49,7 @@ export function sungWords(m: Melody, syls: Syllable[], spell: Record<string, str
   syls.forEach((s, i) => parent.push(s.melisma && i > 0 ? parent[i - 1] : i));
   const shown = parent.map((p) => {
     const s = syls[p];
-    return (respell.get(s.text.toLowerCase()) ?? s.text) + (s.wordEnd ? "" : "-");
+    return writtenSyllable(respell.get(s.text.toLowerCase()) ?? s.text, s.wordEnd);
   });
   return { times, shown, parent };
 }

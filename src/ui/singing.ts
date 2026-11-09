@@ -4,7 +4,8 @@
  * (the previous syllable's coda runs straight into the next onset); a "-" in the lyrics holds
  * the vowel onto a new pitch (melisma). Releasing the sounding key while another is still down
  * glides back to that key on the same vowel. Key velocity sets the breath.
- * Demo songs are planned whole (planSong) and sent as one score.
+ * Demo songs, and scores loaded from MusicXML, are planned whole (planSong, a phrase between rests
+ * at a time) and sent as one score.
  */
 import { create } from "zustand";
 import { engine } from "../audio/AudioEngine.ts";
@@ -13,8 +14,10 @@ import { lyricsToSyllables, type Syllable } from "../wasm/engine.ts";
 import { planSong, planNoteOn, planNoteOff, planMelisma } from "../wasm/engine.ts";
 import { EXHALE_LABEL } from "../wasm/engine.ts";
 import { DEMO_SONGS } from "../wasm/engine.ts";
-import type { Gesture } from "../wasm/types.ts";
+import type { Gesture, Language } from "../wasm/types.ts";
+import { writtenSyllable } from "../show/words.ts";
 import { nearestBody, type BodyMix } from "./body.ts";
+import { octaveShift, readScoreFile, singScore, type Score, type SungScoreNote } from "../show/musicxml.ts";
 
 /** A note on the piano roll, on the voice clock (s); t1 is null while it is held. */
 export interface RollNote {
@@ -34,6 +37,8 @@ export const DEFAULT_LYRICS = "Hello there, I am a voice made of air.";
 const AH: Syllable = { text: "ah", onset: [], nucleus: { ipa: "ɑ", stress: 1 }, coda: [], wordEnd: true, phraseEnd: false };
 
 interface SingState {
+  language?: Language;
+  setLanguage: (language?: Language) => void;
   lyrics: string;
   syllables: Syllable[];
   /** the syllable the next key sings */
@@ -44,6 +49,10 @@ interface SingState {
   demo: string | null;
   /** index of the demo syllable being sung (−1: none yet) */
   demoAt: number;
+  /** the score loaded from a MusicXML file, if any (it plays like a demo, by its title) */
+  score: Score | null;
+  /** why the last file couldn't be read */
+  scoreError: string | null;
   setLyrics: (text: string) => void;
   setCursor: (i: number) => void;
   setVibrato: (cents: number) => void;
@@ -56,13 +65,24 @@ export const useSing = create<SingState>((set, get) => ({
   vibrato: 35,
   demo: null,
   demoAt: -1,
+  score: null,
+  scoreError: null,
   setLyrics: (text) => {
     stopDemo();
-    set({ lyrics: text, syllables: lyricsToSyllables(text), cursor: 0 });
+    set({ lyrics: text, ...readLyrics(text, get().language), cursor: 0 });
+  },
+  setLanguage: (language) => {
+    stopDemo();
+    set({ language, ...readLyrics(get().lyrics, language), cursor: 0 });
   },
   setCursor: (i) => set({ cursor: Math.max(0, Math.min(i, Math.max(0, get().syllables.length - 1))) }),
   setVibrato: (cents) => set({ vibrato: cents }),
 }));
+
+function readLyrics(text: string, language?: Language): Pick<SingState, "syllables" | "scoreError"> {
+  try { return { syllables: lyricsToSyllables(text, language), scoreError: null }; }
+  catch (e) { return { syllables: [], scoreError: e instanceof Error ? e.message : String(e) }; }
+}
 
 /** Load the pronouncing dictionary, then re-read the lyrics with it (the cursor stays). */
 export function ensureDictionary(): void {
@@ -71,8 +91,9 @@ export function ensureDictionary(): void {
     .load()
     .then(() => {
       const s = useSing.getState();
-      const syllables = lyricsToSyllables(s.lyrics);
-      useSing.setState({ syllables, cursor: Math.min(s.cursor, Math.max(0, syllables.length - 1)) });
+      const parsed = readLyrics(s.lyrics, s.language);
+      const { syllables } = parsed;
+      useSing.setState({ ...parsed, cursor: Math.min(s.cursor, Math.max(0, syllables.length - 1)) });
     })
     .catch(() => {
       // no dictionary: the letter-to-sound rules keep working
@@ -91,8 +112,8 @@ interface Sounding {
 
 let sounding: Sounding | null = null;
 
-/** How a syllable is written at the mouth: a hyphen when its word goes on. */
-const written = (s: Syllable) => s.text + (s.wordEnd ? "" : "-");
+/** How a syllable is written at the mouth: a hyphen when its word goes on (not in Japanese). */
+const written = (s: Syllable) => writtenSyllable(s.text, s.wordEnd);
 
 /**
  * The syllable being sung now, for the words at the mouth: the demo's note under the clock, or
@@ -242,7 +263,65 @@ engine.onPlanned((m) => {
 /** Sing a demo song (after `ready`, e.g. audio startup, resolves; unless stopped meanwhile). */
 export async function playDemo(name: string, body: BodyMix, ready?: () => Promise<void>): Promise<void> {
   const song = DEMO_SONGS.find((s) => s.name === name);
-  if (!song) return;
+  if (!song) return playScore(body, ready);
+  await play(song.name, song.bpm, song.lyrics, body, ready, () => {
+    const syl = lyricsToSyllables(song.lyrics);
+    if (!syl.length) return null;
+    const shift = song.octave[nearestBody(body)] * 12;
+    return song.notes.map((n, i) => ({ midi: n[0] + shift, beats: n[1], syl: syl[i % syl.length] }));
+  });
+}
+
+/** Read a MusicXML file (`.musicxml`, `.xml` or `.mxl`) into the loaded score, and sing it. */
+export async function openScore(file: File, body: BodyMix, ready?: () => Promise<void>): Promise<void> {
+  try {
+    const score = await readScoreFile(new Uint8Array(await file.arrayBuffer()), file.name);
+    useSing.setState({ score, scoreError: null });
+  } catch (e) {
+    useSing.setState({ scoreError: `${file.name}: ${e instanceof Error ? e.message : String(e)}` });
+    return;
+  }
+  await playScore(body, ready);
+}
+
+/** The loaded score's lyrics as text: a space after each word, but kana run on (a space would
+ * split a Japanese word, and が行 and ん follow the word), and a comma at each rest (a breath, if
+ * the text is edited and sung from the keys). */
+function scoreLyrics(score: Score, language?: Language): string {
+  const kana = /[ぁ-ヿ]/;
+  const japanese = language ? language === "ja" : score.notes.some((n) => n.lyric && kana.test(n.lyric.text));
+  return score.notes
+    .map((n) => {
+      if (n.midi === null) return japanese ? "、" : ", ";
+      if (!n.lyric) return "";
+      const runOn = n.lyric.syllabic === "begin" || n.lyric.syllabic === "middle" || kana.test(n.lyric.text);
+      return n.lyric.text + (runOn ? "" : " ");
+    })
+    .join("")
+    .replace(/ +,/g, ",")
+    .trim();
+}
+
+/** Sing the loaded score; without lyrics in it, the lyrics typed in sing a syllable a note. */
+export async function playScore(body: BodyMix, ready?: () => Promise<void>): Promise<void> {
+  const score = useSing.getState().score;
+  if (!score) return;
+  const { lyrics: typed, language } = useSing.getState();
+  const lyrics = score.notes.some((n) => n.lyric) ? scoreLyrics(score, language) : typed;
+  await play(score.title, score.bpm, lyrics, body, ready, () => {
+    const syllabify = (text: string) => lyricsToSyllables(text, language);
+    const fallback = score.notes.some((n) => n.lyric) ? [] : syllabify(typed);
+    const notes = singScore(score, syllabify, fallback, language);
+    const shift = octaveShift(notes, nearestBody(body) === "male" ? 0 : 1);
+    return notes.map((n) => (n.midi === null ? n : { ...n, midi: n.midi + shift }));
+  });
+}
+
+/**
+ * Plan and send a melody (notes and rests, each note with its syllable), a phrase between rests
+ * at a time, and follow it on the roll and the lyrics.
+ */
+async function play(name: string, bpm: number, lyrics: string, body: BodyMix, ready: (() => Promise<void>) | undefined, make: () => SungScoreNote[] | null): Promise<void> {
   stopSinging();
   const token = demoToken;
   await ready?.();
@@ -252,25 +331,51 @@ export async function playDemo(name: string, body: BodyMix, ready?: () => Promis
     // letter-to-sound rules
   }
   if (token !== demoToken) return;
-  const syl = lyricsToSyllables(song.lyrics);
-  if (!syl.length) return;
-  const shift = song.octave[nearestBody(body)] * 12;
-  const notes = song.notes.map((n, i) => ({ midi: n[0] + shift, beats: n[1], syl: syl[i % syl.length] }));
+  let all: SungScoreNote[] | null;
+  try { all = make(); }
+  catch (e) {
+    useSing.setState({ scoreError: e instanceof Error ? e.message : String(e) });
+    return;
+  }
+  if (!all?.some((n) => n.syl)) return;
   const t0 = 0.35;
-  const plan = planSong(notes, { body, bpm: song.bpm, t0, vibrato: useSing.getState().vibrato });
-  const beat = 60 / song.bpm;
+  const beat = 60 / bpm;
+  const vibrato = useSing.getState().vibrato;
+  const gestures: Gesture[] = [];
+  const segments: ReturnType<typeof planSong>["segments"] = [];
+  let end = t0;
+  const notes: { midi: number; syl: Syllable }[] = [];
+  const times: [number, number][] = [];
   let t = t0;
-  const times = notes.map((n): [number, number] => {
-    const a = t;
+  let phrase: { midi: number; beats: number; syl: Syllable }[] = [];
+  let phraseT0 = t0;
+  const flush = () => {
+    if (!phrase.length) return;
+    const plan = planSong(phrase, { body, bpm, t0: phraseT0, vibrato });
+    gestures.push(...plan.gestures);
+    segments.push(...plan.segments);
+    end = Math.max(end, plan.end);
+    phrase = [];
+  };
+  for (const n of all) {
+    if (n.midi === null || !n.syl) {
+      flush();
+      t += n.beats * beat;
+      continue;
+    }
+    if (!phrase.length) phraseT0 = t;
+    phrase.push({ midi: n.midi, beats: n.beats, syl: n.syl });
+    notes.push({ midi: n.midi, syl: n.syl });
+    times.push([t, t + n.beats * beat]);
     t += n.beats * beat;
-    return [a, t];
-  });
-  const id = engine.schedule({ gestures: plan.gestures, segments: plan.segments, end: plan.end });
+  }
+  flush();
+  const id = engine.schedule({ gestures, segments, end });
   const parent: number[] = [];
   notes.forEach((n, i) => parent.push(n.syl.melisma && i > 0 ? parent[i - 1] : i));
   const shown = parent.map((p) => written(notes[p].syl));
-  demoRun = { id, times, midi: notes.map((n) => n.midi), text: notes.map((n) => n.syl.text), shown, parent, end: plan.end, offset: null };
-  useSing.setState({ lyrics: song.lyrics, syllables: syl, cursor: 0, demo: song.name, demoAt: -1 });
+  demoRun = { id, times, midi: notes.map((n) => n.midi), text: notes.map((n) => n.syl.text), shown, parent, end, offset: null };
+  useSing.setState({ lyrics, syllables: notes.map((n) => n.syl), cursor: 0, demo: name, demoAt: -1 });
 }
 
 function stopDemo(): void {

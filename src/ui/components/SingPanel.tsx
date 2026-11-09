@@ -1,11 +1,13 @@
 import { useStore } from "../store.ts";
-import { useSing, playDemo, stopSinging, soundingSyllable, sungNow, DEMO_SONGS } from "../singing.ts";
+import { useRef } from "react";
+import { useSing, playDemo, playScore, openScore, stopSinging, soundingSyllable, sungNow, DEMO_SONGS } from "../singing.ts";
 import { mouthWords } from "../mouthWords.ts";
 import { V } from "../colors.ts";
 import { Keys } from "./Keys.tsx";
 import { PianoRoll } from "./PianoRoll.tsx";
 import { SpectrumView } from "./SpectrumView.tsx";
 import { Chip, Screen } from "./Screen.tsx";
+import { LanguageSelect } from "./Controls.tsx";
 import { EncoderPages } from "./Encoder.tsx";
 import { noteName } from "./VoiceControls.tsx";
 import type { InfoFn } from "./AnatomyView.tsx";
@@ -35,16 +37,33 @@ export const singInfo: InfoFn = (_m, _f, tele) => {
 
 function Lyrics() {
   const lyrics = useSing((s) => s.lyrics);
+  const language = useSing((s) => s.language);
+  const setLanguage = useSing((s) => s.setLanguage);
   const syllables = useSing((s) => s.syllables);
   const cursor = useSing((s) => s.cursor);
   const demo = useSing((s) => s.demo);
   const demoAt = useSing((s) => s.demoAt);
   const setLyrics = useSing((s) => s.setLyrics);
   const setCursor = useSing((s) => s.setCursor);
+  const scoreError = useSing((s) => s.scoreError);
+  const body = useStore((s) => s.body);
+  const start = useStore((s) => s.start);
   const at = demo ? demoAt : -1;
   const done = demo ? demoAt : cursor;
   return (
-    <div className="lyrics">
+    <div
+      className="lyrics"
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) e.preventDefault();
+      }}
+      onDrop={(e) => {
+        const file = e.dataTransfer.files[0];
+        if (!file) return;
+        e.preventDefault();
+        void openScore(file, body, start);
+      }}
+    >
+      <LanguageSelect value={language} onChange={setLanguage} />
       <textarea
         value={lyrics}
         onChange={(e) => setLyrics(e.target.value)}
@@ -55,6 +74,11 @@ function Lyrics() {
         title="Each note sings the next syllable. Hold a key while you press the next one to sing legato. A lone “-” between words holds a vowel over several notes; hyphens split a word your way (“ti-ger”)."
       />
       <div className="syllables" role="group" aria-label="Syllables. Each note sings the marked one; choose another to start there.">
+        {scoreError && (
+          <span className="score-error" role="alert">
+            {scoreError}
+          </span>
+        )}
         {syllables.map((s, i) => (
           <span key={i} className={`syl-wrap${s.wordEnd ? " word-end" : ""}`}>
             <button
@@ -115,23 +139,41 @@ function DemoSongs() {
   const body = useStore((s) => s.body);
   const start = useStore((s) => s.start);
   const demo = useSing((s) => s.demo);
+  const score = useSing((s) => s.score);
+  const file = useRef<HTMLInputElement>(null);
+  const song = (name: string, play: () => Promise<void>) => (
+    <Chip
+      key={name}
+      on={demo === name}
+      onClick={async () => {
+        if (demo === name) {
+          stopSinging();
+          return;
+        }
+        await play();
+      }}
+    >
+      {demo === name ? `Stop “${name}”` : name}
+    </Chip>
+  );
   return (
     <div className="demo-songs" role="group" aria-label="Demo songs">
-      {DEMO_SONGS.map((s) => (
-        <Chip
-          key={s.name}
-          on={demo === s.name}
-          onClick={async () => {
-            if (demo === s.name) {
-              stopSinging();
-              return;
-            }
-            await playDemo(s.name, body, start);
-          }}
-        >
-          {demo === s.name ? `Stop “${s.name}”` : s.name}
-        </Chip>
-      ))}
+      {DEMO_SONGS.map((s) => song(s.name, () => playDemo(s.name, body, start)))}
+      {score && song(score.title, () => playScore(body, start))}
+      <Chip toggle={false} onClick={() => file.current?.click()} title="Sing a song from a MusicXML file (.musicxml, .xml or .mxl), as exported by MuseScore and other notation programs. You can also drop the file on the lyrics. It stays in this browser.">
+        Open MusicXML
+      </Chip>
+      <input
+        ref={file}
+        type="file"
+        accept=".musicxml,.xml,.mxl,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) void openScore(f, body, start);
+        }}
+      />
     </div>
   );
 }

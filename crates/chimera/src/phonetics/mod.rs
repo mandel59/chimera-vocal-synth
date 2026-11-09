@@ -10,6 +10,8 @@ pub mod durations;
 pub mod english;
 pub mod inventory;
 pub mod ipa;
+pub mod japanese;
+pub mod text;
 pub mod planner;
 pub mod sing;
 pub mod songs;
@@ -33,6 +35,10 @@ pub struct Segment {
     /// word boundary after this segment
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub word_end: Option<bool>,
+    /// speech pitch relative to the phrase's base (× f0, before declination), in place of the
+    /// stress accents: the high and low morae of a pitch-accent language
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pitch: Option<f64>,
 }
 
 impl Segment {
@@ -50,6 +56,30 @@ pub enum Intonation {
     /// final rise
     Question,
     Flat,
+}
+
+/// A text phrase before the gestural planner assigns its timeline.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Phrase {
+    pub segments: Vec<Segment>,
+    pub intonation: Intonation,
+    /// pause after the phrase (s)
+    pub pause: f64,
+    /// the words said, one per word end in `segments`
+    pub words: Vec<String>,
+    /// the language's tempo: its durations are divided by this on top of the speaker's rate, so
+    /// 1× is a natural pace in every language (English: none, 1)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rate: Option<f64>,
+    /// the language's speaking pitch against the voice's, in semitones for a male and a female
+    /// speaker (bodies in between blend them): languages set the sexes apart by different amounts
+    /// (English: none, 0)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub register: Option<[f64; 2]>,
+    /// the language's aspiration of voiceless stops (see `PlanOptions::aspiration`; English: none)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aspiration: Option<f64>,
 }
 
 /// A segment as the planner timed it.

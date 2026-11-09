@@ -43,6 +43,8 @@ and the CLI) under a React UI. See the README.
 - **The wasm loads before the UI.** A module that calls the engine at import must not be reachable
   from `src/main.tsx`'s static imports. Check: `bun tools/e2e.ts` against `bun run preview`.
 - **DOM content flows in `.screen-body`, never absolutely positioned.** Check: `bun run lint:layout`.
+- **IPA cells may have more than two symbols.** They must wrap inside the chart's 600 px minimum
+  width. Check: `bun run lint:layout` and the cell-bound checks in `bun tools/e2e.ts`.
 - **Nothing copyrighted goes in git.** `public/shows/` is gitignored; never ship CSD audio or
   anything derived from it.
 - **Voice tuning follows `docs/hill-climb/README.md`** and never edits its judges.
