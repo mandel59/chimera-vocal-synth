@@ -22,7 +22,7 @@ use chimera::phonetics::sing::{
     plan_song,
 };
 use chimera::phonetics::songs::DEMO_SONGS;
-use chimera::phonetics::syllables::lyrics_to_syllables;
+use chimera::phonetics::text::{self as language, Language};
 use chimera::phonetics::{Intonation, Plan, Syllable};
 use chimera::voice::human_voice::{HumanVoice, SCOPE_POINTS, SourcePatch, VoiceTelemetry};
 use std::io::Read;
@@ -53,7 +53,7 @@ fn slug(name: &str) -> String {
     let mut out = String::new();
     let mut run = false;
     for c in name.to_lowercase().chars() {
-        if c.is_ascii_lowercase() {
+        if c.is_ascii_lowercase() || (!c.is_ascii() && c.is_alphanumeric()) {
             out.push(c);
             run = false;
         } else if !run {
@@ -143,16 +143,21 @@ pub fn text_f0(body_name: &str) -> f64 {
 /// Say `text` the way `render text` does: CMUdict G2P, the phrase planner from t0 = 50 ms, the
 /// body's speaking f0, 300 ms of tail. `chimera compare tsp` measures exactly these renders.
 pub fn say(g: &EnglishG2P, text: &str, body_name: &str) -> Result<Spoken, String> {
+    say_in(g, text, body_name, Some(Language::English))
+}
+
+/// Render a prepared reading through the same planner and voice as the English judge.
+fn say_in(g: &EnglishG2P, text: &str, body_name: &str, lang: Option<Language>) -> Result<Spoken, String> {
     let b = body(body_name)?;
     let f0 = text_f0(body_name);
-    let phrases = g.to_phrases(text);
+    let phrases = language::to_phrases(text, lang, g);
     let shown: Vec<String> = phrases
         .iter()
         .map(|p| {
             let s: String = p
                 .segments
                 .iter()
-                .map(|s| format!("{}{}", if s.stress == Some(1) { "ˈ" } else { "" }, s.ipa))
+                .map(|s| format!("{}{}", if s.pitch.is_none() && s.stress == Some(1) { "ˈ" } else { "" }, s.ipa))
                 .collect();
             s + if p.intonation == Intonation::Question {
                 "?"
@@ -190,14 +195,91 @@ pub fn say(g: &EnglishG2P, text: &str, body_name: &str) -> Result<Spoken, String
     Ok(Spoken { out, plan, shown: shown.join(" | ") })
 }
 
-/// English text through G2P and the phrase planner. `render text <out> ["Text."] [body]`
+fn take_language(args: &mut Vec<String>) -> Result<Option<Language>, String> {
+    let Some(at) = args.iter().position(|s| s == "--lang") else { return Ok(None) };
+    let lang = args.get(at + 1).ok_or("--lang needs en or ja")?.parse()?;
+    args.drain(at..=at + 1);
+    Ok(Some(lang))
+}
+
+fn prepare_reading(text: &str, lang: Option<Language>) -> Result<std::borrow::Cow<'_, str>, String> {
+    if lang.unwrap_or_else(|| Language::detect(text)) == Language::Japanese {
+        #[cfg(feature = "jdic")]
+        if crate::jdic::wants(text) {
+            return crate::jdic::annotate(text).map(std::borrow::Cow::Owned);
+        }
+        if language::needs_reading(text) {
+            return Err("Japanese text needs kana, or build with --features jdic for kanji readings".into());
+        }
+    }
+    Ok(std::borrow::Cow::Borrowed(text))
+}
+
+#[cfg(test)]
+mod language_tests {
+    use super::*;
+
+    #[test]
+    fn say_and_the_text_entry_share_english_samples_and_plans() {
+        let g = EnglishG2P::new();
+        let judge = say(&g, "Hello.", "female").unwrap();
+        let cli = say_in(&g, "Hello.", "female", None).unwrap();
+        // Inactive target slots are NaN; compare the public plan representation.
+        assert_eq!(serde_json::to_value(&judge.plan).unwrap(), serde_json::to_value(&cli.plan).unwrap());
+        assert_eq!(judge.out, cli.out);
+        assert_eq!(judge.shown, cli.shown);
+    }
+
+    #[test]
+    fn japanese_uses_the_shared_renderer_with_language_parameters() {
+        let g = EnglishG2P::new();
+        let said = say_in(&g, "は＼し ほん。", "male", Some(Language::Japanese)).unwrap();
+        let phrases = language::to_phrases("は＼し ほん。", Some(Language::Japanese), &g);
+        let inputs: Vec<PhraseInput> = phrases.into_iter().map(|p| PhraseInput {
+            segments: p.segments, intonation: Some(p.intonation), pause: Some(p.pause),
+            rate: p.rate, register: p.register, aspiration: p.aspiration,
+        }).collect();
+        let plan = plan_phrases(&inputs, &PlanOptions { body: "male".into(), t0: 0.05, f0: Some(112.0), ..Default::default() });
+        assert_eq!(serde_json::to_value(&said.plan).unwrap(), serde_json::to_value(&plan).unwrap());
+        assert!(said.out.iter().any(|x| x.abs() > 1e-4));
+        assert!(said.shown.contains('ɰ'));
+        assert!(!said.shown.contains('ˈ'));
+    }
+
+    #[test]
+    fn language_option_does_not_shift_positional_arguments() {
+        let mut args = vec!["--lang", "ja", "out", "さくら", "female"].into_iter().map(str::to_string).collect();
+        assert_eq!(take_language(&mut args).unwrap(), Some(Language::Japanese));
+        assert_eq!(args, ["out", "さくら", "female"]);
+        assert!(take_language(&mut vec!["--lang".into()]).is_err());
+        assert!(take_language(&mut vec!["--lang".into(), "fr".into()]).is_err());
+    }
+
+    #[test]
+    fn hand_marked_readings_stay_unchanged() {
+        assert_eq!(prepare_reading("あ＼めが ふる", Some(Language::Japanese)).unwrap(), "あ＼めが ふる");
+    }
+
+    #[cfg(not(feature = "jdic"))]
+    #[test]
+    fn kanji_without_a_dictionary_is_an_error() {
+        assert!(prepare_reading("雨が降る", None).unwrap_err().contains("--features jdic"));
+    }
+}
+
+/// Text through the selected language frontend. `render text <out> ["Text."] [body] [--lang en|ja]`
 pub fn text(ctx: &Ctx, a: &[String]) -> Result<(), String> {
+    let mut args = a.to_vec();
+    let lang = take_language(&mut args)?;
+    let a = &args;
     let name = arg(a, 0, "out/text");
     let text = arg(a, 1, "Hello world.");
     let body_name = arg(a, 2, "male");
+    let reading = prepare_reading(text, lang)?;
+    if reading.as_ref() != text { println!("{reading}"); }
     let g = g2p()?;
     let t = Instant::now();
-    let s = say(&g, text, body_name)?;
+    let s = say_in(&g, &reading, body_name, lang)?;
     let ms = ms_since(t);
     println!("{}", s.shown);
     let file = wav_name(name);
@@ -224,7 +306,7 @@ pub fn song(ctx: &Ctx, a: &[String]) -> Result<(), String> {
     };
 
     for song in DEMO_SONGS {
-        let syl = lyrics_to_syllables(song.lyrics, &g);
+        let syl = language::lyrics_to_syllables(song.lyrics, None, &g);
         let octave = match body_name {
             "female" => song.octave.female,
             "child" => song.octave.child,
@@ -276,7 +358,7 @@ pub fn song(ctx: &Ctx, a: &[String]) -> Result<(), String> {
     }
 
     // live-style: key presses with gaps and one legato pair, as the keyboard would send them
-    let syl = lyrics_to_syllables("hello there my friend", &g);
+    let syl = language::lyrics_to_syllables("hello there my friend", Some(Language::English), &g);
     let mut v = HumanVoice::new(FS, b, 2);
     v.set_source(&SourcePatch {
         f0: Some(130.0),
@@ -514,13 +596,17 @@ pub fn notes(ctx: &Ctx, a: &[String]) -> Result<(), String> {
     let bpm = j["bpm"].as_f64().ok_or("bpm missing")?;
     let vibrato = j["vibrato"].as_f64().unwrap_or(35.0);
     let raw: Vec<[f64; 2]> = serde_json::from_value(j["notes"].clone()).map_err(|e| format!("notes: {e}"))?;
-    // "syllables" sing what a language front end wrote; otherwise the lyrics go through the
-    // English front end (the pronouncing dictionary)
+    // Explicit syllables bypass text analysis; otherwise select the lyric language.
     let syl: Vec<Syllable> = if j.get("syllables").is_some() {
         serde_json::from_value(j["syllables"].clone()).map_err(|e| format!("syllables: {e}"))?
     } else {
         let g = g2p()?;
-        lyrics_to_syllables(j["lyrics"].as_str().ok_or("lyrics missing")?, &g)
+        let lang: Option<Language> = serde_json::from_value(j["language"].clone()).map_err(|e| format!("language: {e}"))?;
+        let lyrics = j["lyrics"].as_str().ok_or("lyrics missing")?;
+        if lang.unwrap_or_else(|| Language::detect(lyrics)) == Language::Japanese && language::needs_reading(lyrics) {
+            return Err("Japanese lyrics need kana readings".into());
+        }
+        language::lyrics_to_syllables(lyrics, lang, &g)
     };
     let sounding = raw.iter().filter(|n| n[0] > 0.0).count();
     if syl.len() != sounding {
