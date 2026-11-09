@@ -314,7 +314,7 @@ pub fn plan_utterance(input: &[Segment], o: &PlanOptions) -> Plan {
         } else if def.voicing == Voicing::Voiceless {
             if def.manner == Manner::Stop || def.manner == Manner::Affricate {
                 // aspirated when syllable-initial before a vowel and not after /s/ (English-like)
-                let aspirated = next_vowel && !prev_seg.is_some_and(|p| p.ipa == "s");
+                let aspirated = next_vowel && !prev_seg.is_some_and(|p| p.ipa == "s" || p.ipa == "s̪");
                 // a language's aspiration scales how fast the folds close after the release; they
                 // stay apart through it, so the burst keeps its flow (closing them earlier cost a
                 // female [k] 7-10 dB of burst, her tract opening later than planned)
@@ -418,7 +418,7 @@ fn place_rank(place: &str) -> Option<u8> {
     Some(match place {
         "bilabial" => 0,
         "labiodental" => 1,
-        "dental" => 2,
+        "dental" | "denti-alveolar" => 2,
         "alveolar" => 3,
         "postalveolar" | "alveolo-palatal" => 4,
         "retroflex" => 5,
@@ -497,8 +497,9 @@ pub fn oral_gestures_into(def: &PhonemeDef, tg: &ArticPatch, a: f64, b: f64, spe
     if !dom.is_empty() {
         out.push(Gesture::new(a - early, js_max(a + 0.01, b - lead), 0.03, if body_only { 0.03 } else { 0.018 }, 40.0, artic_targets(&dom)).speed(sp).release_hold(0.045).label(label));
     }
-    // alveolars front the tongue body during the closure (the alveolar F2 locus, ~1.8 kHz)
-    let alveolar = def.place == "alveolar" && tg.get(ArticKey::TbX).is_none() && matches!(def.manner, Manner::Stop | Manner::Nasal | Manner::Fricative | Manner::Affricate | Manner::Tap);
+    // alveolars front the tongue body during the closure (the alveolar F2 locus, ~1.8 kHz), and
+    // so do the laminal denti-alveolars, whose blade raises it as far
+    let alveolar = (def.place == "alveolar" || def.place == "denti-alveolar") && tg.get(ArticKey::TbX).is_none() && matches!(def.manner, Manner::Stop | Manner::Nasal | Manner::Fricative | Manner::Affricate | Manner::Tap);
     if alveolar {
         out.push(Gesture::new(a, b, 0.05, 0.05, 1.2, Targets::default().with(ArticKey::TbX, 3.2).with(ArticKey::TbY, 7.4)).label(label));
     }

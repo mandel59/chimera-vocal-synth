@@ -223,6 +223,20 @@ fn geminate(next: Option<&'static str>) -> &'static str {
     }
 }
 
+/// The laminal denti-alveolar of an alveolar.
+fn dental(ipa: &str) -> Option<&'static str> {
+    Some(match ipa {
+        "t" => "t̪",
+        "d" => "d̪",
+        "n" => "n̪",
+        "s" => "s̪",
+        "z" => "z̪",
+        "ts" => "t̪s̪",
+        "dz" => "d̪z̪",
+        _ => return None,
+    })
+}
+
 /// One run of kana → syllables, one per note. `prev` is the syllable sung before the run (for a
 /// ー or っ at its start).
 pub fn kana_to_syllables(word: &str, prev: Option<&Syllable>) -> Vec<Syllable> {
@@ -247,6 +261,19 @@ pub fn kana_to_syllables(word: &str, prev: Option<&Syllable>) -> Vec<Syllable> {
                 if let Some(p) = out.last_mut() {
                     p.coda.push(seg(geminate(next_consonant(&ms, k + 1))));
                 }
+            }
+        }
+    }
+    // た だ な さ ざ つ (and ん, っ before them) are laminal denti-alveolar, not the English apical
+    // alveolars: set last, so the rules above match the plain symbols. っ before ち or ぢ keeps
+    // the alveolar closure, which the alveolo-palatal releases.
+    for k in 0..out.len() {
+        let before_alvpal = out.get(k + 1).and_then(|n| n.onset.first()).is_some_and(|c| c.ipa == "tɕ" || c.ipa == "dʑ");
+        let s = &mut out[k];
+        let coda = s.coda.iter_mut().filter(|_| !before_alvpal);
+        for c in s.onset.iter_mut().chain(coda).chain(std::iter::once(&mut s.nucleus)) {
+            if let Some(d) = dental(&c.ipa) {
+                c.ipa = d.into();
             }
         }
     }

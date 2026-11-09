@@ -23,8 +23,8 @@ fn show(text: &str) -> String {
 
 #[test]
 fn one_syllable_per_kana() {
-    assert_eq!(show("さくら"), "さ:s.a. く:k.ɯ. ら:ɾ.a.");
-    assert_eq!(show("しちつふひ"), "し:ɕ.i. ち:tɕ.i. つ:ts.ɯ. ふ:ɸ.ɯ. ひ:ç.i.");
+    assert_eq!(show("さくら"), "さ:s̪.a. く:k.ɯ. ら:ɾ.a.");
+    assert_eq!(show("しちつふひ"), "し:ɕ.i. ち:tɕ.i. つ:t̪s̪.ɯ. ふ:ɸ.ɯ. ひ:ç.i.");
 }
 
 #[test]
@@ -37,50 +37,50 @@ fn small_kana_join_the_mora_before() {
     assert_eq!(show("きゃしゅちょ"), "きゃ:c.a. しゅ:ɕ.ɯ. ちょ:tɕ.o.");
     // a palatalized velar or nasal is one palatal consonant; labials take a glide
     assert_eq!(show("ぎょにゃみゅりょ"), "ぎょ:ɟ.o. にゃ:ɲ.a. みゅ:mj.ɯ. りょ:ɾj.o.");
-    assert_eq!(show("ふぁてぃうぇ"), "ふぁ:ɸ.a. てぃ:t.i. うぇ:w.e.");
+    assert_eq!(show("ふぁてぃうぇ"), "ふぁ:ɸ.a. てぃ:t̪.i. うぇ:w.e.");
 }
 
 #[test]
 fn moraic_nasal_takes_the_next_place() {
-    assert_eq!(show("さんぽ"), "さ:s.a. ん:.m. ぽ:p.o.");
-    assert_eq!(show("かんだ"), "か:k.a. ん:.n. だ:d.a.");
+    assert_eq!(show("さんぽ"), "さ:s̪.a. ん:.m. ぽ:p.o.");
+    assert_eq!(show("かんだ"), "か:k.a. ん:.n̪. だ:d̪.a.");
     assert_eq!(show("りんご"), "り:ɾ.i. ん:.ŋ. ご:g.o.");
     assert_eq!(show("ほん"), "ほ:h.o. ん:.ɰ̃.");
     // a fricative, glide or vowel after it: no closure, the nasal vowel (sung as spoken)
     assert_eq!(show("あんしん"), "あ:.a. ん:.ɰ̃. し:ɕ.i. ん:.ɰ̃.");
-    assert_eq!(show("でんわ"), "で:d.e. ん:.ɰ̃. わ:w.a.");
+    assert_eq!(show("でんわ"), "で:d̪.e. ん:.ɰ̃. わ:w.a.");
 }
 
 #[test]
 fn spoken_n_without_a_closure_is_a_nasal_vowel() {
     // asked 2026-11-09: the ん of かもしれません should be a nasal vowel, not a closed [ɴ]
-    assert_eq!(spoken("せん。"), "s e ɰ̃");
-    assert_eq!(spoken("たんい"), "t a ɰ̃ i");
-    assert_eq!(spoken("さんぽ"), "s a m p o");
+    assert_eq!(spoken("せん。"), "s̪ e ɰ̃");
+    assert_eq!(spoken("たんい"), "t̪ a ɰ̃ i");
+    assert_eq!(spoken("さんぽ"), "s̪ a m p o");
 }
 
 #[test]
 fn sokuon_closes_the_mora_before_and_takes_no_note() {
-    assert_eq!(show("かった"), "か:k.a.t た:t.a.");
+    assert_eq!(show("かった"), "か:k.a.t̪ た:t̪.a.");
     assert_eq!(show("まっちゃ"), "ま:m.a.t ちゃ:tɕ.a.");
     assert_eq!(show("あっ"), "あ:.a.ʔ");
 }
 
 #[test]
 fn long_mark_holds_the_vowel() {
-    assert_eq!(show("そらー"), "そ:s.o. ら:ɾ.a. ~ー:.a.");
+    assert_eq!(show("そらー"), "そ:s̪.o. ら:ɾ.a. ~ー:.a.");
     // across a space it still holds the vowel before
-    assert_eq!(show("そら ー"), "そ:s.o. ら:ɾ.a. ~ー:.a.");
+    assert_eq!(show("そら ー"), "そ:s̪.o. ら:ɾ.a. ~ー:.a.");
 }
 
 #[test]
 fn japanese_punctuation_ends_phrases() {
-    assert_eq!(show("さくら、さくら。"), "さ:s.a. く:k.ɯ. ら:ɾ.a.| さ:s.a. く:k.ɯ. ら:ɾ.a.|");
+    assert_eq!(show("さくら、さくら。"), "さ:s̪.a. く:k.ɯ. ら:ɾ.a.| さ:s̪.a. く:k.ɯ. ら:ɾ.a.|");
 }
 
 #[test]
 fn kanji_are_skipped_and_english_still_reads() {
-    assert_eq!(show("桜さくら"), "さ:s.a. く:k.ɯ. ら:ɾ.a.");
+    assert_eq!(show("桜さくら"), "さ:s̪.a. く:k.ɯ. ら:ɾ.a.");
     let en = |w: &str, _r: bool| if w == "hi" { vec![Segment { ipa: "h".into(), ..Default::default() }, Segment { ipa: "aɪ".into(), ..Default::default() }] } else { vec![] };
     let s = lyrics_to_syllables("hi さ", &en);
     assert_eq!(s.iter().map(|s| s.text.as_str()).collect::<Vec<_>>(), ["hi", "さ"]);
@@ -96,15 +96,15 @@ fn spoken(text: &str) -> String {
 
 #[test]
 fn kana_text_is_read_as_japanese() {
-    assert_eq!(spoken("きのう"), "k i n o ɯ");
-    assert_eq!(spoken("さくら、さくら。"), "s a k ɯ ɾ a | s a k ɯ ɾ a");
+    assert_eq!(spoken("きのう"), "k i n̪ o ɯ");
+    assert_eq!(spoken("さくら、さくら。"), "s̪ a k ɯ ɾ a | s̪ a k ɯ ɾ a");
 }
 
 #[test]
 fn spoken_vowels_keep_their_voice() {
     // dropping a devoiced vowel was heard as a missing mora (see japanese.rs)
-    assert_eq!(spoken("すき"), "s ɯ k i");
-    assert_eq!(spoken("です。"), "d e s ɯ");
+    assert_eq!(spoken("すき"), "s̪ ɯ k i");
+    assert_eq!(spoken("です。"), "d̪ e s̪ ɯ");
 }
 
 #[test]
@@ -144,6 +144,17 @@ fn spoken_words_match_their_word_ends() {
 #[test]
 fn english_text_is_still_english() {
     assert!(!spoken("hello").contains('ɯ'));
+}
+
+#[test]
+fn japanese_alveolars_are_laminal_dental_and_english_ones_are_not() {
+    // asked 2026-11-09: Japanese s and t should sit where Japanese makes them, not at the
+    // English apical alveolar place
+    assert_eq!(spoken("たださなざつ"), "t̪ a d̪ a s̪ a n̪ a z̪ a t̪s̪ ɯ");
+    // ん before た closes with it; っ before ち keeps the alveolar closure that ち releases
+    assert_eq!(show("ほんと"), "ほ:h.o. ん:.n̪. と:t̪.o.");
+    assert_eq!(show("まっちゃ"), "ま:m.a.t ちゃ:tɕ.a.");
+    assert!(!spoken("stand tall").contains('\u{32a}'));
 }
 
 // ---------------------------------------------------------------- pitch accent
