@@ -12,6 +12,7 @@
 use crate::anatomy::human::BodyMix;
 use super::english::js_is_space;
 use super::korean::Korean;
+use super::japanese;
 use super::planner::is_vowel;
 use super::{Segment, Syllable};
 use serde::{Deserialize, Serialize};
@@ -165,6 +166,10 @@ pub trait FrontEnd {
     }
     /// One word → its syllables (the router marks the last as the word's end).
     fn word(&self, word: &str) -> Vec<Syllable>;
+    /// Context for continuations such as a Japanese long-vowel mark after whitespace.
+    fn word_after(&self, word: &str, _previous: Option<&Syllable>) -> Vec<Syllable> {
+        self.word(word)
+    }
 }
 
 /// English, through a [`WordSource`] (the pronouncing dictionary, or letter-to-sound rules).
@@ -198,6 +203,20 @@ impl<W: WordSource> FrontEnd for English<'_, W> {
     }
 }
 
+struct Japanese;
+
+impl FrontEnd for Japanese {
+    fn starts(&self, c: char) -> bool {
+        japanese::is_kana(c)
+    }
+    fn word(&self, word: &str) -> Vec<Syllable> {
+        japanese::kana_to_syllables(word, None)
+    }
+    fn word_after(&self, word: &str, previous: Option<&Syllable>) -> Vec<Syllable> {
+        japanese::kana_to_syllables(word, previous)
+    }
+}
+
 enum Token {
     Word(usize, String),
     Mark(char),
@@ -206,7 +225,7 @@ enum Token {
 /// Words (with the index of the front end that claims them), melisma marks and phrase punctuation,
 /// in order. For English and Hangul this is
 /// `text.match(/[A-Za-z'][A-Za-z'\-]*|[가-힣]+|(?<=\s|^)[~-](?=\s|$)|[.,;:!?\n]/g)`.
-fn lyric_tokens(text: &str, front_ends: &[&dyn FrontEnd]) -> Vec<Token> {
+fn lyric_tokens(text: &str, front_ends: &[&dyn FrontEnd], kana: bool) -> Vec<Token> {
     let s: Vec<char> = text.chars().collect();
     let mut out = Vec::new();
     let mut i = 0;
@@ -222,7 +241,7 @@ fn lyric_tokens(text: &str, front_ends: &[&dyn FrontEnd]) -> Vec<Token> {
             continue;
         }
         let melisma = (c == '~' || c == '-') && (i == 0 || js_is_space(s[i - 1])) && (i + 1 == s.len() || js_is_space(s[i + 1]));
-        if melisma || is_lyric_punct(c) {
+        if melisma || is_lyric_punct(c) || (kana && matches!(c, '、' | '。' | '！' | '？')) {
             out.push(Token::Mark(c));
         }
         i += 1;
@@ -233,10 +252,14 @@ fn lyric_tokens(text: &str, front_ends: &[&dyn FrontEnd]) -> Vec<Token> {
 /// Lyrics text → syllables, each word read by the first front end that claims it. Characters no
 /// front end claims (other scripts, symbols) are skipped.
 pub fn read_lyrics(text: &str, front_ends: &[&dyn FrontEnd]) -> Vec<Syllable> {
+    read_lyrics_with_kana(text, front_ends, false)
+}
+
+fn read_lyrics_with_kana(text: &str, front_ends: &[&dyn FrontEnd], kana: bool) -> Vec<Syllable> {
     let mut out: Vec<Syllable> = Vec::new();
-    for tok in lyric_tokens(&text.replace('’', "'"), front_ends) {
+    for tok in lyric_tokens(&text.replace('’', "'"), front_ends, kana) {
         match tok {
-            Token::Mark(c) if is_lyric_punct(c) => {
+            Token::Mark(c) if is_lyric_punct(c) || (kana && matches!(c, '、' | '。' | '！' | '？')) => {
                 if let Some(last) = out.last_mut() {
                     last.phrase_end = true;
                 }
@@ -248,7 +271,7 @@ pub fn read_lyrics(text: &str, front_ends: &[&dyn FrontEnd]) -> Vec<Syllable> {
                 }
             }
             Token::Word(k, w) => {
-                let mut syls = front_ends[k].word(&w);
+                let mut syls = front_ends[k].word_after(&w, out.last());
                 if let Some(last) = syls.last_mut() {
                     last.word_end = true;
                 }
@@ -263,4 +286,13 @@ pub fn read_lyrics(text: &str, front_ends: &[&dyn FrontEnd]) -> Vec<Syllable> {
 /// dictionary: English (`g2p`) and Korean.
 pub fn lyrics_to_syllables(text: &str, g2p: &impl WordSource) -> Vec<Syllable> {
     read_lyrics(text, &[&English(g2p), &Korean])
+}
+
+/// Compatibility entry for the fork's Japanese language selection.
+pub fn lyrics_with_kana(text: &str, g2p: &impl WordSource, kana: bool) -> Vec<Syllable> {
+    if kana {
+        read_lyrics_with_kana(text, &[&English(g2p), &Japanese, &Korean], true)
+    } else {
+        lyrics_to_syllables(text, g2p)
+    }
 }

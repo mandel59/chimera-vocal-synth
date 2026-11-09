@@ -169,6 +169,9 @@ pub fn say(g: &EnglishG2P, text: &str, body_name: &str) -> Result<Spoken, String
             segments: p.segments.clone(),
             intonation: Some(p.intonation),
             pause: Some(p.pause),
+            rate: p.rate,
+            register: p.register,
+            aspiration: p.aspiration,
         })
         .collect();
     let plan = plan_phrases(
