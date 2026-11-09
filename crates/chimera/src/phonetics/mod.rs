@@ -73,6 +73,18 @@ pub enum Intonation {
     Flat,
 }
 
+/// A text phrase before the gestural planner assigns its timeline.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Phrase {
+    pub segments: Vec<Segment>,
+    pub intonation: Intonation,
+    /// pause after the phrase (s)
+    pub pause: f64,
+    /// the words said, one per word end in `segments`
+    pub words: Vec<String>,
+}
+
 /// A segment as the planner timed it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
