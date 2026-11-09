@@ -314,8 +314,6 @@ pub const ASPIRATION: f64 = 0.3;
 const MORA_VOWEL: f64 = 0.17;
 /// a spoken ん (s)
 const MORA_N: f64 = 0.15;
-/// a spoken ー: the vowel before it, held on as a mora of its own (s)
-const MORA_LONG: f64 = 0.1;
 /// a っ closure (s): a mora's worth of silence
 const MORA_GEMINATE: f64 = 0.09;
 /// pitch of a high and a low mora, relative to the phrase's base: about four semitones apart
@@ -401,8 +399,10 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
     let mut segs: Vec<Segment> = Vec::new();
     for (s, word_end, pitch) in &syls {
         if s.melisma == Some(true) {
-            // ー is a mora of its own: the vowel goes on, at its own pitch (キョ＼ー falls inside)
-            segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(MORA_LONG), stress: Some(1), pitch: Some(*pitch), ..Default::default() });
+            // ー is a mora of its own: the vowel goes on for a mora's vowel, at its own pitch
+            // (キョ＼ー falls inside), so a long vowel is twice its short one. At 0.1 s it was 1.6
+            // times, and ソード's oo was heard short.
+            segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(MORA_VOWEL), stress: Some(1), pitch: Some(*pitch), ..Default::default() });
         } else {
             let vowel = matches!(s.nucleus.ipa.as_str(), "a" | "i" | "ɯ" | "e" | "o");
             for c in &s.onset {

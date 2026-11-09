@@ -581,3 +581,27 @@ fn typed_ipa_keeps_the_symbols_the_speak_chart_offers() {
     assert_eq!(ipa("aɕaʑatɕadʑaɰ̃"), "a ɕ a ʑ a tɕ a dʑ a ɰ̃");
     assert_eq!(ipa("atsa"), "a ts a");
 }
+
+/// planned duration (s) of the vowel after the first consonant, with any ー after it
+fn first_vowel_ms(text: &str) -> f64 {
+    let (plan, _) = speak(text, BODY_MALE, "male", 110.0);
+    let segs = &plan.segments;
+    let i = segs.iter().position(|s| s.kind == "vowel").unwrap();
+    let mut t1 = segs[i].t1;
+    let mut k = i + 1;
+    while k < segs.len() && segs[k].ipa == segs[i].ipa {
+        t1 = segs[k].t1;
+        k += 1;
+    }
+    (t1 - segs[i].t0) * 1000.0
+}
+
+#[test]
+fn a_long_vowel_is_twice_a_short_one() {
+    // asked 2026-11-09: the oo of ソード was short. ー held the vowel 0.1 s, under a mora's 0.17,
+    // so ソー's vowel was 1.6 times そ's; a Japanese long vowel is about twice its short vowel
+    // or more (Hirata 2004)
+    let (long, short) = (first_vowel_ms("ソード。"), first_vowel_ms("そど。"));
+    eprintln!("ソー {long:.0} ms, そ {short:.0} ms, ratio {:.2}", long / short);
+    assert!(long / short >= 1.9, "ソー {long:.0} ms, そ {short:.0} ms");
+}
