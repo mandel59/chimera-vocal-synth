@@ -50,21 +50,23 @@ pub static DEMO_SONGS: &[DemoSong] = &[
     },
     DemoSong {
         // 荒城の月: music by Rentarō Taki (1879–1903), words by Bansui Doi (1871–1952), published
-        // 1901; both in the public domain. The first verse, to the melody as it is usually sung
-        // today, in A minor, 4/4. A breath after each half line (7 and 5 morae). こう and ろう are
-        // sung as long お, so they are written こー and ろー (ー holds the vowel onto the next note).
+        // 1901; both in the public domain. The first verse in A minor, 4/4, nearer Taki's original
+        // than the usual modern version: even quarters on ろーの and かずき (bars 2 and 6), the
+        // raised D♯ on はなのえん's え, and the line ends of bars 8 and 16 an octave down. A breath
+        // after each half line (7 and 5 morae). こう and ろう are sung as long お, so they are
+        // written こー and ろー (ー holds the vowel onto the next note).
         name: "荒城の月",
         bpm: 66.0,
         lyrics: "はるこーろーの、はなのえん。めぐるさかずき、かげさして。ちよのまつがえ、わけいでし。むかしのひかり、いまいずこ。",
         notes: &[
-            [64.0, 1.0], [64.0, 1.0], [69.0, 1.0], [71.0, 1.0], [72.0, 1.5], [71.0, 0.5], [69.0, 2.0],
-            [65.0, 1.0], [65.0, 1.0], [64.0, 1.0], [62.0, 1.0], [64.0, 4.0],
-            [64.0, 1.0], [64.0, 1.0], [69.0, 1.0], [71.0, 1.0], [72.0, 1.5], [71.0, 0.5], [69.0, 2.0],
-            [65.0, 1.0], [62.0, 1.0], [64.0, 1.5], [64.0, 0.5], [69.0, 4.0],
+            [64.0, 1.0], [64.0, 1.0], [69.0, 1.0], [71.0, 1.0], [72.0, 1.0], [71.0, 1.0], [69.0, 2.0],
+            [65.0, 1.0], [65.0, 1.0], [64.0, 1.0], [63.0, 1.0], [64.0, 4.0],
+            [64.0, 1.0], [64.0, 1.0], [69.0, 1.0], [71.0, 1.0], [72.0, 1.0], [71.0, 1.0], [69.0, 2.0],
+            [65.0, 1.0], [62.0, 1.0], [64.0, 1.5], [64.0, 0.5], [57.0, 4.0],
             [72.0, 1.0], [72.0, 1.0], [71.0, 1.0], [69.0, 1.0], [65.0, 1.0], [65.0, 1.0], [64.0, 2.0],
             [65.0, 1.0], [64.0, 1.0], [62.0, 1.0], [60.0, 1.0], [59.0, 4.0],
             [64.0, 1.0], [64.0, 1.0], [69.0, 1.0], [71.0, 1.0], [72.0, 1.5], [71.0, 0.5], [69.0, 2.0],
-            [65.0, 1.0], [62.0, 1.0], [64.0, 1.5], [64.0, 0.5], [69.0, 4.0],
+            [65.0, 1.0], [62.0, 1.0], [64.0, 1.5], [64.0, 0.5], [57.0, 4.0],
         ],
         octave: SongOctave { male: -1.0, female: 0.0, child: 0.0 },
     },
