@@ -135,10 +135,16 @@ impl PhonemeDef {
 // place templates
 const BILABIAL: Tg = &[(LipAp, -0.25)];
 const ALV_STOP: Tg = &[(TtX, 6.25), (TtY, 9.68)];
-#[allow(dead_code)]
 const DENT_STOP: Tg = &[(TtX, 6.85), (TtY, 9.0)];
+// Japanese t d n s z ts dz are laminal and denti-alveolar: the blade against the backs of the
+// upper incisors and the ridge behind them, the tip down (Vance 2008; Okada 1999 in the Handbook
+// of the IPA), where English t d n s z are apical alveolar
+const DENTALV_FRIC: Tg = &[(TtX, 6.6), (TtY, 9.0), (Jaw, 0.3)];
 const POSTALV_STOP: Tg = &[(TtX, 5.75), (TtY, 10.0)];
 const RETRO_STOP: Tg = &[(TtX, 5.45), (TtY, 10.05), (TtCurl, 0.95)];
+const ALVPAL_FRIC: Tg = &[(TtX, 5.9), (TtY, 9.45), (Jaw, 0.3), (TbX, 3.8), (TbY, 7.7), (LipProt, 0.0)];
+const ALVPAL_STOP: Tg = &[(TtX, 5.9), (TtY, 10.0), (TbX, 3.8), (TbY, 7.7), (LipProt, 0.0)];
+const ALVPAL: &[ArticKey] = &[TtX, TtY, Jaw, TbX, TbY];
 const PAL_STOP: Tg = &[(TbX, 3.75), (TbY, 8.45)];
 // velar closure: aimed past contact (the contact model caps penetration) so it seals wherever the
 // vowel puts the tongue body front–back, and the jaw rises part-way (open-vowel contexts leaked)
@@ -156,6 +162,8 @@ fn base() -> Vec<PhonemeDef> {
         c("b", "voiced bilabial stop", M::Stop, Voiced, "bilabial", t(BILABIAL), &LIPS, 0.07),
         c("t", "voiceless alveolar stop", M::Stop, Voiceless, "alveolar", t(ALV_STOP), &TIP, 0.075),
         c("d", "voiced alveolar stop", M::Stop, Voiced, "alveolar", t(ALV_STOP), &TIP, 0.06),
+        c("t̪", "voiceless laminal denti-alveolar stop", M::Stop, Voiceless, "denti-alveolar", t(DENT_STOP), &TIP, 0.075),
+        c("d̪", "voiced laminal denti-alveolar stop", M::Stop, Voiced, "denti-alveolar", t(DENT_STOP), &TIP, 0.06),
         c("ʈ", "voiceless retroflex stop", M::Stop, Voiceless, "retroflex", t(RETRO_STOP), TIP_CURL, 0.075),
         c("ɖ", "voiced retroflex stop", M::Stop, Voiced, "retroflex", t(RETRO_STOP), TIP_CURL, 0.065),
         c("c", "voiceless palatal stop", M::Stop, Voiceless, "palatal", t(PAL_STOP), &BODY, 0.08),
@@ -169,6 +177,7 @@ fn base() -> Vec<PhonemeDef> {
         c("m", "bilabial nasal", M::Nasal, Voiced, "bilabial", t(BILABIAL), &LIPS, 0.075).nasal(),
         c("ɱ", "labiodental nasal", M::Nasal, Voiced, "labiodental", t(&[(Labiodental, 1.0), (LipAp, -0.1)]), &[Labiodental, LipAp], 0.075).nasal(),
         c("n", "alveolar nasal", M::Nasal, Voiced, "alveolar", t(ALV_STOP), &TIP, 0.07).nasal(),
+        c("n̪", "laminal denti-alveolar nasal", M::Nasal, Voiced, "denti-alveolar", t(DENT_STOP), &TIP, 0.07).nasal(),
         c("ɳ", "retroflex nasal", M::Nasal, Voiced, "retroflex", t(RETRO_STOP), TIP_CURL, 0.07).nasal(),
         c("ɲ", "palatal nasal", M::Nasal, Voiced, "palatal", t(PAL_STOP), &BODY, 0.075).nasal(),
         c("ŋ", "velar nasal", M::Nasal, Voiced, "velar", t(VEL_STOP), &[TbY], 0.08).nasal(),
@@ -182,8 +191,15 @@ fn base() -> Vec<PhonemeDef> {
         c("ð", "voiced dental fricative", M::Fricative, Voiced, "dental", t(&[(TtX, 6.85), (TtY, 8.5)]), &TIP, 0.07).cal(0.17, TtY),
         c("s", "voiceless alveolar fricative", M::Fricative, Voiceless, "alveolar", t(&[(TtX, 6.3), (TtY, 9.15), (Jaw, 0.3)]), &[TtX, TtY, Jaw], 0.12).cal(0.085, TtY),
         c("z", "voiced alveolar fricative", M::Fricative, Voiced, "alveolar", t(&[(TtX, 6.3), (TtY, 9.15), (Jaw, 0.3)]), &[TtX, TtY, Jaw], 0.09).cal(0.1, TtY),
+        c("s̪", "voiceless laminal denti-alveolar fricative", M::Fricative, Voiceless, "denti-alveolar", t(DENTALV_FRIC), &[TtX, TtY, Jaw], 0.12).cal(0.085, TtY),
+        c("z̪", "voiced laminal denti-alveolar fricative", M::Fricative, Voiced, "denti-alveolar", t(DENTALV_FRIC), &[TtX, TtY, Jaw], 0.09).cal(0.1, TtY),
         c("ʃ", "voiceless postalveolar fricative", M::Fricative, Voiceless, "postalveolar", t(&[(TtX, 5.7), (TtY, 9.5), (Jaw, 0.35), (LipProt, 0.75), (LipWidth, 0.2)]), &[TtX, TtY, Jaw, LipProt, LipWidth], 0.12).cal(0.2, TtY),
         c("ʒ", "voiced postalveolar fricative", M::Fricative, Voiced, "postalveolar", t(&[(TtX, 5.7), (TtY, 9.5), (Jaw, 0.35), (LipProt, 0.75), (LipWidth, 0.2)]), &[TtX, TtY, Jaw, LipProt, LipWidth], 0.09).cal(0.22, TtY),
+        // alveolo-palatal (Japanese し じ): the tip near the postalveolar place with the front of the
+        // tongue raised toward the hard palate behind it, and the lips not rounded, so the front
+        // cavity is shorter and the hiss higher than [ʃ]
+        c("ɕ", "voiceless alveolo-palatal fricative", M::Fricative, Voiceless, "alveolo-palatal", t(ALVPAL_FRIC), ALVPAL, 0.12).cal(0.15, TtY),
+        c("ʑ", "voiced alveolo-palatal fricative", M::Fricative, Voiced, "alveolo-palatal", t(ALVPAL_FRIC), ALVPAL, 0.09).cal(0.17, TtY),
         c("ʂ", "voiceless retroflex fricative", M::Fricative, Voiceless, "retroflex", t(&[(TtX, 5.45), (TtY, 9.7), (TtCurl, 0.9)]), TIP_CURL, 0.12).cal(0.15, TtY),
         c("ʐ", "voiced retroflex fricative", M::Fricative, Voiced, "retroflex", t(&[(TtX, 5.45), (TtY, 9.7), (TtCurl, 0.9)]), TIP_CURL, 0.09).cal(0.17, TtY),
         c("ç", "voiceless palatal fricative", M::Fricative, Voiceless, "palatal", t(&[(TbX, 3.75), (TbY, 8.25)]), &BODY, 0.12).cal(0.14, TbY),
@@ -201,8 +217,12 @@ fn base() -> Vec<PhonemeDef> {
         // affricates
         c("ts", "voiceless alveolar affricate", M::Affricate, Voiceless, "alveolar", t(ALV_STOP), &TIP, 0.14).rel("s"),
         c("dz", "voiced alveolar affricate", M::Affricate, Voiced, "alveolar", t(ALV_STOP), &TIP, 0.12).rel("z"),
+        c("t̪s̪", "voiceless laminal denti-alveolar affricate", M::Affricate, Voiceless, "denti-alveolar", t(DENT_STOP), &TIP, 0.14).rel("s̪"),
+        c("d̪z̪", "voiced laminal denti-alveolar affricate", M::Affricate, Voiced, "denti-alveolar", t(DENT_STOP), &TIP, 0.12).rel("z̪"),
         c("tʃ", "voiceless postalveolar affricate", M::Affricate, Voiceless, "postalveolar", tg(POSTALV_STOP, &[(LipProt, 0.75), (LipWidth, 0.2)]), &[TtX, TtY, LipProt, LipWidth], 0.15).rel("ʃ"),
         c("dʒ", "voiced postalveolar affricate", M::Affricate, Voiced, "postalveolar", tg(POSTALV_STOP, &[(LipProt, 0.75), (LipWidth, 0.2)]), &[TtX, TtY, LipProt, LipWidth], 0.13).rel("ʒ"),
+        c("tɕ", "voiceless alveolo-palatal affricate", M::Affricate, Voiceless, "alveolo-palatal", t(ALVPAL_STOP), ALVPAL, 0.15).rel("ɕ"),
+        c("dʑ", "voiced alveolo-palatal affricate", M::Affricate, Voiced, "alveolo-palatal", t(ALVPAL_STOP), ALVPAL, 0.13).rel("ʑ"),
         c("pf", "voiceless labiodental affricate", M::Affricate, Voiceless, "labiodental", t(BILABIAL), &LIPS, 0.14).rel("f"),
         // approximants, laterals, taps, trills
         c("w", "labial-velar approximant", M::Approximant, Voiced, "labial-velar", t(&[(LipAp, 0.28), (LipProt, 1.0), (LipWidth, 0.05), (TbX, 2.45), (TbY, 7.45)]), &[LipAp, LipProt, LipWidth, TbX, TbY], 0.06),
@@ -211,6 +231,9 @@ fn base() -> Vec<PhonemeDef> {
         c("ɻ", "retroflex approximant", M::Approximant, Voiced, "retroflex", t(&[(TtX, 5.4), (TtY, 9.55), (TtCurl, 1.0)]), TIP_CURL, 0.065),
         c("j", "palatal approximant", M::Approximant, Voiced, "palatal", t(&[(TbX, 3.8), (TbY, 7.95), (Jaw, 0.25)]), &BODY, 0.055),
         c("ɰ", "velar approximant", M::Approximant, Voiced, "velar", t(&[(TbX, 2.35), (TbY, 7.45)]), &BODY, 0.06),
+        // Japanese ん before a vowel, glide or fricative and at the end: the back of the tongue
+        // rises toward the soft palate without touching it, and the velum lowers (a nasal vowel)
+        c("ɰ̃", "nasalized velar approximant", M::Approximant, Voiced, "velar", t(&[(TbX, 2.35), (TbY, 7.45)]), &BODY, 0.08).nasal(),
         c("l", "alveolar lateral approximant", M::Lateral, Voiced, "alveolar", tg(ALV_STOP, &[(Lateral, 1.0)]), &[TtX, TtY, Lateral], 0.065),
         c("ɫ", "velarised lateral", M::Lateral, Voiced, "alveolar", tg(ALV_STOP, &[(Lateral, 1.0), (TbX, 1.9), (TbY, 6.8)]), &[TtX, TtY, Lateral, TbX, TbY], 0.075),
         c("ɭ", "retroflex lateral", M::Lateral, Voiced, "retroflex", tg(RETRO_STOP, &[(Lateral, 1.0)]), &[TtX, TtY, TtCurl, Lateral], 0.065),

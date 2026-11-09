@@ -21,8 +21,8 @@ await initChimera(readFileSync(new URL("../src/wasm/chimera.wasm", import.meta.u
 const CONSONANT_SYMBOLS = call<{ consonantSymbols: string[] }>("catalog").consonantSymbols;
 
 const VOWEL_CHARS = "iyɨʉɯuɪʏʊeøɘɵɤoəɛœɜɞʌɔæɐaɶɑɒɝɚ";
-const MULTI = ["tʃ", "dʒ", "ts", "dz", "pf", "aɪ", "aʊ", "ɔɪ", "eɪ", "oʊ"];
-const ALIAS_SOURCES = ["t͡ʃ", "d͡ʒ", "t͡s", "d͡z", "ɡ", "ʧ", "ʤ", "r̥", "ɐ̯"];
+const MULTI = ["tʃ", "dʒ", "ts", "dz", "tɕ", "dʑ", "pf", "aɪ", "aʊ", "ɔɪ", "eɪ", "oʊ"];
+const ALIAS_SOURCES = ["t͡ʃ", "d͡ʒ", "t͡s", "d͡z", "t͡ɕ", "d͡ʑ", "ɡ", "ʧ", "ʤ", "r̥", "ɐ̯"];
 const DELIMS = "ˈ'ˌ .|,ː:";
 
 const ch = (cp: number) => String.fromCodePoint(cp);
