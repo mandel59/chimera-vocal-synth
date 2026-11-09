@@ -106,15 +106,17 @@ function ConsonantChart(props: { onPad: (c: string) => void }) {
               </th>
               {cells.map((pair, i) => (
                 <td key={i}>
-                  {pair.map((sym, j) =>
-                    sym ? (
-                      <button key={j} className={`ipa${sym === now ? " now" : ""}`} onClick={() => props.onPad(sym)} title={`Say it between two vowels`}>
-                        {sym}
-                      </button>
-                    ) : (
-                      <span key={j} className="ipa-empty" />
-                    ),
-                  )}
+                  <div className="ipa-pair">
+                    {pair.map((sym, j) =>
+                      sym ? (
+                        <button key={j} className={`ipa${sym === now ? " now" : ""}`} onClick={() => props.onPad(sym)} title={`Say it between two vowels`}>
+                          {sym}
+                        </button>
+                      ) : (
+                        <span key={j} className="ipa-empty" />
+                      ),
+                    )}
+                  </div>
                 </td>
               ))}
             </tr>
