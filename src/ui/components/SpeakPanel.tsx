@@ -29,6 +29,22 @@ const CHART: [string, (string | null)[][]][] = [
   ["Approximant", [[null, null], [null, "ʋ"], [null, null], [null, "ɹ"], [null, null], [null, "ɻ"], [null, "j"], [null, "ɰ"], [null, null], [null, null], [null, null]]],
   ["Lateral", [[null, null], [null, null], [null, null], [null, "l"], [null, null], [null, "ɭ"], [null, "ʎ"], [null, null], [null, null], [null, null], [null, null]]],
 ];
+/** the "other symbols" the chart's cells can't hold: diacritic places, alveolo-palatals, affricates
+ * and the nasal vowel of ん, each with what it is (and the Japanese kana that uses it) */
+const OTHER: [string, string][] = [
+  ["t̪", "voiceless laminal denti-alveolar stop (Japanese た)"],
+  ["d̪", "voiced laminal denti-alveolar stop (Japanese だ)"],
+  ["n̪", "laminal denti-alveolar nasal (Japanese な)"],
+  ["s̪", "voiceless laminal denti-alveolar fricative (Japanese さ)"],
+  ["z̪", "voiced laminal denti-alveolar fricative (Japanese ざ)"],
+  ["t̪s̪", "voiceless laminal denti-alveolar affricate (Japanese つ)"],
+  ["d̪z̪", "voiced laminal denti-alveolar affricate (Japanese づ)"],
+  ["ɕ", "voiceless alveolo-palatal fricative (Japanese し)"],
+  ["ʑ", "voiced alveolo-palatal fricative (Japanese じ)"],
+  ["tɕ", "voiceless alveolo-palatal affricate (Japanese ち)"],
+  ["dʑ", "voiced alveolo-palatal affricate (Japanese じ, ぢ)"],
+  ["ɰ̃", "nasalized velar approximant (Japanese ん, where it doesn't close)"],
+];
 
 /** the segment sounding now in the current utterance */
 function soundingSegment(): string | null {
@@ -106,6 +122,18 @@ function ConsonantChart(props: { onPad: (c: string) => void }) {
               ))}
             </tr>
           ))}
+          <tr>
+            <th scope="row" title="Other symbols" aria-label="Other symbols">
+              Other
+            </th>
+            <td colSpan={PLACES.length} className="ipa-other">
+              {OTHER.map(([sym, name]) => (
+                <button key={sym} className={`ipa${sym === now ? " now" : ""}`} onClick={() => props.onPad(sym)} title={`${name}: say it between two vowels`}>
+                  {sym}
+                </button>
+              ))}
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>

@@ -6,8 +6,10 @@ use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
 const VOWEL_CHARS: &str = "iyɨʉɯuɪʏʊeøɘɵɤoəɛœɜɞʌɔæɐaɶɑɒɝɚ";
-const MULTI: [&str; 12] = ["tʃ", "dʒ", "ts", "dz", "tɕ", "dʑ", "pf", "aɪ", "aʊ", "ɔɪ", "eɪ", "oʊ"];
-const ALIASES: [(&str, &str); 11] = [("t͡ʃ", "tʃ"), ("d͡ʒ", "dʒ"), ("t͡s", "ts"), ("d͡z", "dz"), ("t͡ɕ", "tɕ"), ("d͡ʑ", "dʑ"), ("ɡ", "g"), ("ʧ", "tʃ"), ("ʤ", "dʒ"), ("r̥", "r"), ("ɐ̯", "ɐ")];
+// a symbol with a diacritic is listed here, or the diacritic is dropped below. The last match
+// wins, so a longer symbol comes after the shorter one it starts with.
+const MULTI: [&str; 20] = ["tʃ", "dʒ", "ts", "dz", "tɕ", "dʑ", "pf", "aɪ", "aʊ", "ɔɪ", "eɪ", "oʊ", "t̪", "d̪", "n̪", "s̪", "z̪", "t̪s̪", "d̪z̪", "ɰ̃"];
+const ALIASES: [(&str, &str); 13] = [("t͡ʃ", "tʃ"), ("d͡ʒ", "dʒ"), ("t͡s", "ts"), ("d͡z", "dz"), ("t̪͡s̪", "t̪s̪"), ("d̪͡z̪", "d̪z̪"), ("t͡ɕ", "tɕ"), ("d͡ʑ", "dʑ"), ("ɡ", "g"), ("ʧ", "tʃ"), ("ʤ", "dʒ"), ("r̥", "r"), ("ɐ̯", "ɐ")];
 
 
 fn known() -> &'static HashSet<&'static str> {

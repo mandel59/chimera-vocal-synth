@@ -569,3 +569,15 @@ fn a_held_final_n_is_sung_out_loud() {
         assert!(a - n < 12.0, "{name}: ん {n:.1} dB, あ {a:.1} dB");
     }
 }
+
+#[test]
+fn typed_ipa_keeps_the_symbols_the_speak_chart_offers() {
+    // the Speak tab's chart offers the consonants added for Japanese; typed, their diacritics
+    // used to be dropped (t̪ said as t, ɰ̃ as ɰ)
+    use chimera::phonetics::ipa::tokenize_ipa;
+    let ipa = |s: &str| tokenize_ipa(s).iter().map(|x| x.ipa.clone()).collect::<Vec<_>>().join(" ");
+    assert_eq!(ipa("at̪ad̪an̪as̪az̪a"), "a t̪ a d̪ a n̪ a s̪ a z̪ a");
+    assert_eq!(ipa("at̪s̪ad̪z̪a at̪͡s̪a"), "a t̪s̪ a d̪z̪ a a t̪s̪ a");
+    assert_eq!(ipa("aɕaʑatɕadʑaɰ̃"), "a ɕ a ʑ a tɕ a dʑ a ɰ̃");
+    assert_eq!(ipa("atsa"), "a ts a");
+}
