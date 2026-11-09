@@ -260,11 +260,54 @@ fn release_excess(text: &str, ipa: &str) -> Vec<(String, f64)> {
 }
 
 #[test]
-fn ga_is_a_fricative_only_after_a_vowel_in_a_word() {
+fn ga_inside_a_word_is_a_nasal_sung_and_a_fricative_spoken() {
+    // sung (lyrics): 鼻濁音 [ŋ] after a vowel inside a word, [ɲ] for ぎゃ ぎゅ ぎょ
     assert_eq!(show("がっこう"), "が:g.a.k こ:k.o. う:.ɯ.");
     assert_eq!(show("りんご"), "り:ɾ.i. ん:.ŋ. ご:g.o."); // after ん: [ŋg]
-    assert_eq!(show("かがみ"), "か:k.a. が:ɣ.a. み:m.i.");
-    assert_eq!(show("あめが ぎんが"), "あ:.a. め:m.e. が:ɣ.a. ぎ:g.i. ん:.ŋ. が:g.a.");
+    assert_eq!(show("かがみ"), "か:k.a. が:ŋ.a. み:m.i.");
+    assert_eq!(show("あめが ぎんが"), "あ:.a. め:m.e. が:ŋ.a. ぎ:g.i. ん:.ŋ. が:g.a.");
+    assert_eq!(show("かぎょう"), "か:k.a. ぎょ:ɲ.o. う:.ɯ.");
+    // spoken: the fricative [ɣ]; a palatal ぎょ stays [ɟ]
+    assert_eq!(spoken("かがみ。"), "k a ɣ a m i");
+    assert_eq!(spoken("かぎょう。"), "k a ɟ o ɯ");
+    assert_eq!(spoken("ぎんが。"), "g i ŋ g a");
+}
+
+/// The deepest dip (dB) of 10 ms RMS from the note before a consonant to the middle of its own
+/// vowel, re the note before, for the lyric "かげさして" sung on its notes in 荒城の月 (female).
+fn sung_ge_dip(onset: &str) -> f64 {
+    use chimera::phonetics::sing::{SongOptions, SungNote, midi_to_hz, plan_song};
+    let mut syl = lyrics_to_syllables("かげさして。", &word);
+    syl[1].onset[0].ipa = onset.into();
+    let notes: Vec<SungNote> = [[65.0, 0.5], [62.0, 0.5], [64.0, 0.75], [64.0, 0.25], [57.0, 2.0]].iter().zip(&syl).map(|(n, s)| SungNote { midi: n[0], beats: n[1], syl: s.clone() }).collect();
+    let mut v = HumanVoice::new(FS, BODY_FEMALE, 2);
+    v.set_source(&SourcePatch { f0: Some(midi_to_hz(65.0)), voiced: Some(true), pressure: Some(9.0), tension: Some(0.55), ..Default::default() });
+    let plan = plan_song(&notes, &SongOptions { body: "female".into(), bpm: 66.0, t0: 0.3, vibrato: 35.0 });
+    v.schedule(&plan.gestures);
+    let mut out = vec![0.0f32; (FS * (plan.end + 0.3)).round() as usize];
+    for ch in out.chunks_mut(128) {
+        v.render(ch);
+    }
+    let beat = 60.0 / 66.0;
+    let db = |t: f64| {
+        let x = &out[(t * FS) as usize..((t + 0.01) * FS) as usize];
+        10.0 * (x.iter().map(|&s| (s as f64).powi(2)).sum::<f64>() / x.len() as f64).log10()
+    };
+    let (ka, ge) = (0.3, 0.3 + 0.5 * beat);
+    let before = db(ka + 0.25 * beat);
+    let min = (0..).map(|i| ka + 0.25 * beat + 0.005 * i as f64).take_while(|t| *t < ge + 0.25 * beat).map(db).fold(f64::INFINITY, f64::min);
+    before - min
+}
+
+#[test]
+fn a_sung_ge_is_a_voiced_nasal() {
+    // heard 2026-11-09: かげさして's げ in 荒城の月 was weak, sung [ɣ]. The fricative dipped only
+    // 5-8 dB under か, too little to tell げ from え; the nasal [ŋ] is a consonant you hear (about
+    // 12 dB down for 100 ms) and keeps the voice going, where a [g] closure falls silent
+    let (fric, nasal, stop) = (sung_ge_dip("ɣ"), sung_ge_dip("ŋ"), sung_ge_dip("g"));
+    eprintln!("dip under か: [ɣ] {fric:.1} dB, [ŋ] {nasal:.1} dB, [g] {stop:.1} dB");
+    assert!(nasal > fric + 2.0, "[ɣ] {fric:.1} dB, [ŋ] {nasal:.1} dB");
+    assert!(nasal < 18.0 && nasal + 10.0 < stop, "[ŋ] {nasal:.1} dB, [g] {stop:.1} dB");
 }
 
 #[test]

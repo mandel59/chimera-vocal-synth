@@ -10,7 +10,7 @@
 //!  - っ takes no note: it closes the mora before it on the next consonant (かった → ka-t | ta).
 //!
 //! し ち じ are the alveolo-palatal ɕ tɕ dʑ (unrounded, unlike English sh ch j), う is the
-//! unrounded ɯ, and が行 inside a word the fricative ɣ.
+//! unrounded ɯ, and が行 inside a word the nasal ŋ (鼻濁音) sung, the fricative ɣ spoken.
 //!
 //! Speech ([`to_phrases`]) uses the same morae, timed evenly (Japanese is mora-timed). Vowels
 //! aren't devoiced (すき, です): dropping the vowel, the only voiceless vowel the planner can make,
@@ -237,9 +237,14 @@ fn dental(ipa: &str) -> Option<&'static str> {
     })
 }
 
-/// One run of kana → syllables, one per note. `prev` is the syllable sung before the run (for a
-/// ー or っ at its start).
+/// One run of kana → sung syllables, one per note. `prev` is the syllable sung before the run (for
+/// a ー or っ at its start).
 pub fn kana_to_syllables(word: &str, prev: Option<&Syllable>) -> Vec<Syllable> {
+    syllables(word, prev, true)
+}
+
+/// Kana → syllables, sung or spoken: they differ only in が行 inside a word (see below).
+fn syllables(word: &str, prev: Option<&Syllable>, sung: bool) -> Vec<Syllable> {
     let ms = morae(word);
     let mut out: Vec<Syllable> = Vec::new();
     for (k, m) in ms.iter().enumerate() {
@@ -277,12 +282,20 @@ pub fn kana_to_syllables(word: &str, prev: Option<&Syllable>) -> Vec<Syllable> {
             }
         }
     }
-    // が行 after a vowel inside a word is a fricative [ɣ], not a stop: a [g] released between
-    // vowels bursts (heard in あめがふる). Word-initially, and after ん or っ, it stays [g].
+    // が行 after a vowel inside a word is not a stop: a [g] released between vowels bursts (heard
+    // in あめがふる). Spoken, it is the fricative [ɣ]. Sung, it is the nasal [ŋ] (鼻濁音), as
+    // 唱歌 and choral diction have it: a sung [ɣ] was weak on a short note (かげさして's げ), and a
+    // nasal keeps the voice and the pitch going; ぎゃ ぎゅ ぎょ, a palatal [ɟ], become the palatal
+    // nasal [ɲ]. Word-initially, and after ん or っ, it stays [g].
     for k in 1..out.len() {
         let after_vowel = out[k - 1].coda.is_empty() && matches!(out[k - 1].nucleus.ipa.as_str(), "a" | "i" | "ɯ" | "e" | "o");
-        if let Some(c) = out[k].onset.first_mut().filter(|c| c.ipa == "g" && after_vowel) {
-            c.ipa = "ɣ".into();
+        if let Some(c) = out[k].onset.first_mut().filter(|_| after_vowel) {
+            match (c.ipa.as_str(), sung) {
+                ("g", true) => c.ipa = "ŋ".into(),
+                ("ɟ", true) => c.ipa = "ɲ".into(),
+                ("g", false) => c.ipa = "ɣ".into(),
+                _ => {}
+            }
         }
     }
     out
@@ -373,7 +386,7 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
     let mut said = Vec::new();
     let mut step = 1.0;
     for w in words {
-        let mut s = kana_to_syllables(w, syls.last().map(|x| &x.0));
+        let mut s = syllables(w, syls.last().map(|x| &x.0), false);
         if s.is_empty() {
             continue;
         }
@@ -384,7 +397,7 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
             continue;
         }
         // the fall comes after the morae before the first mark
-        let nucleus = w.find(is_accent_mark).map_or(0, |i| kana_to_syllables(&w[..i], None).len());
+        let nucleus = w.find(is_accent_mark).map_or(0, |i| syllables(&w[..i], None, false).len());
         let n = s.len();
         let center = crate::math::pow(2.0, PITCH_CENTER_ST / 12.0);
         syls.extend(s.drain(..).enumerate().map(|(i, x)| (x, (i + 1 == n).then_some(said.len()), center * step * accent_pitch(i, n, nucleus))));
