@@ -521,12 +521,16 @@ fn japanese_voiceless_stops_are_weakly_aspirated() {
 }
 
 #[test]
-fn the_japanese_demo_song_has_a_mora_per_note() {
-    let song = chimera::phonetics::songs::DEMO_SONGS.iter().find(|s| s.name == "きらきらぼし").expect("the demo song");
+fn kojo_no_tsuki_has_a_mora_per_note() {
+    let song = chimera::phonetics::songs::DEMO_SONGS.iter().find(|s| s.name == "荒城の月").expect("the demo song");
     let syls = lyrics_to_syllables(song.lyrics, &word);
     assert_eq!(syls.len(), song.notes.len(), "{:?}", syls.iter().map(|s| s.text.as_str()).collect::<Vec<_>>());
-    // a breath at each line's end: six phrases
-    assert_eq!(syls.iter().filter(|s| s.phrase_end).count(), 6);
+    // a breath after each half line: eight phrases
+    assert_eq!(syls.iter().filter(|s| s.phrase_end).count(), 8);
+    // こう ろう are sung long: the ー holds the お
+    assert_eq!(syls.iter().filter(|s| s.melisma == Some(true)).count(), 2);
+    // the old demo, with lyrics written for it, is gone
+    assert!(chimera::phonetics::songs::DEMO_SONGS.iter().all(|s| s.name != "きらきらぼし"));
 }
 
 #[test]
