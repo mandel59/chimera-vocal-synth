@@ -1381,3 +1381,58 @@ MCD 8.614 dB. `out/hill/best` holds this run, and the listening page was rebuilt
 - **Declined:** a stop shorter than 10 ms still holds its closure past its end (the minimum hold
   in `oral_gestures_into`). It predates this batch, and no planner produces one (the sung floor is
   12 ms).
+
+### Fork experiments: the hiss and the uneven vowels (2026-11-09, mandel59/chimera-vocal-synth)
+
+Asked about by the fork's owner, from listening: a hiss in the singing voice that stays, "like a
+leaking hose", with Breathy at 0, and vowels that aren't equally loud. Measured on held sung
+vowels (pressure 9, tension 0.55), between-harmonic energy re the harmonics in 40 ms frames:
+male 6–10 kHz −7 dB and 10–16 kHz −4 dB, mostly the glottal turbulence source (−9 / −5 alone),
+then the per-cycle jitter (−14 / −10 alone); shimmer and drift are small; the female voice is
+about 12 dB cleaner. The glottal noise peaks at closure and lasts 5–10 dB down into the closed
+phase; closing the posterior chink doesn't change it. Vowel loudness (BS.1770 K-weighted, same
+pitch): male A3 あ −10.0, い −16.1, う −17.6, え −8.5, お −9.6; female A4 あ −8.4, い −12.0,
+う −17.5, え −12.5, お −14.8. Female い and う are sung above their F1 (428, 399 Hz).
+
+Baseline: commit 31dfd729 (`out/hill/baseline`): singer 0.587 training, 0.811 held-out, note
+MCD 8.614 dB; speech 41.06 % training, 45.67 % held-out. Judged like batch 2's experiments, but
+the owner decided by ear. The speed bench was not run.
+
+### 21. Half the glottal turbulence noise (reverted)
+
+- Hypothesis: the glottal jet's noise is as strong as the male voice's harmonics above 8 kHz, and
+  is heard as a hiss on every vowel; a trained singer's is weaker.
+- Change: `NoiseGains::glottis` 3.2e-6 → 1.6e-6 (`voice/human_airway.rs`). Held male あ: 6–10 kHz
+  −7.3 → −11.0 dB, 10–16 kHz −3.5 → −6.6 dB.
+- Speech: 41.06 → 38.74 % (BETTER, within the judge's ±2-point noise); held-out 45.67 → 46.33 %.
+- Singer: 0.587 → 0.586 (NO CLEAR CHANGE), held-out 0.811 → 0.809; note MCD 8.616 dB; no guard
+  broke.
+- Verdict: the owner heard no clear difference. Reverted.
+- Next: if the hiss is retried, look at the noise's timing (strongest at and after closure, where
+  a real glottis has little flow), not its level.
+
+### 22. Jitter correlated from cycle to cycle (reverted)
+
+- Hypothesis: real jitter is serially correlated (Schoentgen & de Guchteneere 1995); the source
+  drew each cycle's period independently, which makes the high harmonics incoherent.
+- Change: a `jitter_corr` (AR(1)) in `sources/glottis.rs`, 0.7 from `apply_source`, the same
+  per-cycle spread. Held male あ: 6–10 kHz −7.3 → −8.0 dB (female −19.3 → −20.6).
+- Speech: 41.06 → 39.74 % (NO CLEAR CHANGE); held-out 44.0 %.
+- Singer: 0.587 → 0.591 (NO CLEAR CHANGE), held-out 0.800; aperiodicity cost 0.06 → 0.09; note
+  MCD 8.633 dB.
+- Verdict: no clear difference by ear, and barely measurable. Reverted.
+
+### 23. Formant tuning: F1 follows a sung note above it (reverted)
+
+- Hypothesis: a note above a vowel's F1 loses the resonance under its fundamental; singers open
+  the vowel until F1 sits just above the pitch (Sundberg 1975; Joliveau, Smith & Wolfe 2004).
+- Change: in `plan_utterance`, for a sung vowel with F1 below 1.1 × f0, the tongue body lowers by
+  log2(1.1 f0 / F1) cm (at most 0.6) for a front or central vowel, or the lips open by 4× that
+  (at most 0.8 cm²) for a back rounded one. In this tract the jaw alone barely moves F1; the
+  tongue does (female う 398 → 538 Hz at −0.4 cm). Female あいうえお at 523 Hz: loudness spread 9.3
+  → 3.9 dB (い −14.1 → −8.6, う −18.5 → −10.5); at 440 Hz 9.3 → 6.9; male unchanged (below F1).
+- Speech: unchanged (singing only).
+- Singer: 0.587 → 0.585 (NO CLEAR CHANGE), held-out 0.810; note MCD 8.614 → 8.597 dB.
+- Verdict: the owner heard no clear difference in さくらさくら. Reverted.
+- Next: the male voice's spread (い, う 6–8 dB under あ at A3) is not formant tuning's: every note
+  is below F1 there.
