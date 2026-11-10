@@ -32,15 +32,22 @@ const CHART: [string, (string | null)[][]][] = [
   ["Approximant", [[null, null], [null, "ʋ"], [null, null], [null, "ɹ"], [null, null], [null, "ɻ"], [null, "j"], [null, "ɰ"], [null, null], [null, null], [null, null]]],
   ["Lateral", [[null, null], [null, null], [null, null], [null, "l"], [null, null], [null, "ɭ"], [null, "ʎ"], [null, null], [null, null], [null, null], [null, null]]],
 ];
-/** the "other symbols" the chart's cells can't hold: the alveolo-palatals, the affricates and the
- * nasal vowel of ん, each with what it is (and the Japanese kana that uses it) */
+/** Sounds outside the chart's simple place/manner cells: affricates, alveolo-palatals and
+ * secondary articulations, each with what it is (and Japanese kana where applicable). */
 const OTHER: [string, string][] = [
+  ["ts", "voiceless alveolar affricate"],
+  ["dz", "voiced alveolar affricate"],
   ["t̪s̪", "voiceless laminal denti-alveolar affricate (Japanese つ)"],
   ["d̪z̪", "voiced laminal denti-alveolar affricate (Japanese づ)"],
+  ["tʃ", "voiceless postalveolar affricate"],
+  ["dʒ", "voiced postalveolar affricate"],
+  ["pf", "voiceless labiodental affricate"],
   ["ɕ", "voiceless alveolo-palatal fricative (Japanese し)"],
   ["ʑ", "voiced alveolo-palatal fricative (Japanese じ)"],
   ["tɕ", "voiceless alveolo-palatal affricate (Japanese ち)"],
   ["dʑ", "voiced alveolo-palatal affricate (Japanese じ, ぢ)"],
+  ["w", "labial-velar approximant"],
+  ["ɫ", "velarised lateral (dark l)"],
   ["ɰ̃", "nasalized velar approximant (Japanese ん, where it doesn't close)"],
 ];
 

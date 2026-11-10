@@ -4,7 +4,11 @@
  * Usage: bun tools/e2e.ts [url] [outdir]
  */
 import { chromium } from "playwright-core";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
+import { call, initChimera } from "../src/wasm/chimera.ts";
+
+await initChimera(readFileSync(new URL("../src/wasm/chimera.wasm", import.meta.url)));
+const { consonantSymbols } = call<{ consonantSymbols: string[] }>("catalog");
 
 const url = process.argv[2] ?? "http://127.0.0.1:5318/";
 const outDir = process.argv[3] ?? "out/e2e";
@@ -86,6 +90,14 @@ async function run(viewport: { width: number; height: number }, tag: string) {
   await page.getByRole("radio", { name: "Speak" }).click();
   await page.waitForTimeout(200);
   await page.getByLabel("Language", { exact: true }).selectOption("en");
+  // Compare the rendered buttons with the engine, including symbols outside the main grid.
+  const chartSymbols = (await page.locator(".ipa-chart button.ipa").allTextContents()).map((s) => s.trim());
+  if (JSON.stringify([...chartSymbols].sort()) !== JSON.stringify([...consonantSymbols].sort())) {
+    const missing = consonantSymbols.filter((s) => !chartSymbols.includes(s));
+    const extra = chartSymbols.filter((s) => !consonantSymbols.includes(s));
+    errors.push(`[${tag}] IPA chart differs from engine: missing ${missing.join(", ")}; extra/duplicate count ${extra.length}/${chartSymbols.length - new Set(chartSymbols).size}`);
+  }
+  logs.push(`[${tag}] consonant chart: ${chartSymbols.length}/${consonantSymbols.length} symbols`);
   // The Dental fricative cell has four symbols; at the 600 px minimum table width they must wrap.
   const escapedIpa = await page.locator(".ipa-chart button.ipa").evaluateAll((buttons) => buttons.filter((button) => {
     const cell = button.closest("td")!.getBoundingClientRect(), r = button.getBoundingClientRect();
@@ -124,6 +136,10 @@ async function run(viewport: { width: number; height: number }, tag: string) {
   const again = await sayBox.inputValue();
   logs.push(`[${tag}] example picked: ${JSON.stringify(picked)}, picked again: "${again}"`);
   if (picked.box !== SHELLS || picked.menu !== "" || picked.ipa !== "false" || again !== SHELLS) errors.push(`[${tag}] the Examples menu didn't put the phrase in as text and reset (${JSON.stringify(picked)}, again "${again}")`);
+  for (const symbol of ["ts", "dz", "tʃ", "dʒ", "pf", "w", "ɫ"]) {
+    await page.locator(".ipa-chart").getByRole("button", { name: symbol, exact: true }).click();
+    await page.waitForFunction((s) => document.querySelector(".transcription")?.textContent?.includes(s), symbol);
+  }
   await page.locator("button.ipa", { hasText: "ʃ" }).first().click();
   await page.waitForTimeout(700);
   await page.screenshot({ path: `${outDir}/${tag}-4-pad.png` });
@@ -336,6 +352,6 @@ await run({ width: 1440, height: 980 }, "desktop");
 await run({ width: 390, height: 844 }, "mobile");
 await browser.close();
 console.log("console errors:", errors.length ? "\n" + errors.join("\n") : "none");
-console.log(logs.filter((l) => /load|rate|warn|transcription|example|creature|held|back to|beatbox|silence|sing|octave|retry/i.test(l)).slice(0, 52).join("\n"));
+console.log(logs.filter((l) => /load|rate|warn|transcription|consonant chart|example|creature|held|back to|beatbox|silence|sing|octave|retry/i.test(l)).slice(0, 52).join("\n"));
 // a run that collected errors fails, so CI and agents can't read it as a pass
 if (errors.length) process.exit(1);
