@@ -181,6 +181,7 @@ struct Seg<'a> {
     nasalized: Option<bool>,
     palatalized: Option<bool>,
     breathy: Option<bool>,
+    release_abduction: Option<f64>,
 }
 
 /// glottal abduction of breathy voice: /ɦ/'s, a gap the folds still vibrate across
@@ -222,10 +223,10 @@ fn plan_utterance_bounded(input: &[Segment], o: &PlanOptions, pause: Option<f64>
             let base = durs[si];
             for (i, p) in parts.iter().enumerate() {
                 let dur = if parts.len() > 1 { base * (if i == 0 { 0.55 } else { 0.45 }) } else { base };
-                segs.push(Seg { ipa: p, dur: Some(dur), stress: s.stress, f0: s.f0, pitch: s.pitch, release_timing: s.release_timing, def: None, vowel: None, glide_from: i > 0, aspirated: None, vot: None, nasalized: s.nasalized, palatalized: None, breathy: s.breathy });
+                segs.push(Seg { ipa: p, dur: Some(dur), stress: s.stress, f0: s.f0, pitch: s.pitch, release_timing: s.release_timing, def: None, vowel: None, glide_from: i > 0, aspirated: None, vot: None, nasalized: s.nasalized, palatalized: None, breathy: s.breathy, release_abduction: None });
             }
         } else {
-            segs.push(Seg { ipa: &s.ipa, dur: Some(durs[si]), stress: s.stress, f0: s.f0, pitch: s.pitch, release_timing: s.release_timing, def: None, vowel: None, glide_from: false, aspirated: s.aspirated, vot: s.vot, nasalized: s.nasalized, palatalized: s.palatalized, breathy: s.breathy });
+            segs.push(Seg { ipa: &s.ipa, dur: Some(durs[si]), stress: s.stress, f0: s.f0, pitch: s.pitch, release_timing: s.release_timing, def: None, vowel: None, glide_from: false, aspirated: s.aspirated, vot: s.vot, nasalized: s.nasalized, palatalized: s.palatalized, breathy: s.breathy, release_abduction: s.release_abduction });
         }
     }
     for s in segs.iter_mut() {
@@ -376,6 +377,13 @@ fn plan_utterance_bounded(input: &[Segment], o: &PlanOptions, pause: Option<f64>
             }
         } else if def.manner == Manner::Fricative {
             gestures.push(Gesture::new(t0, t1, 0.03, 0.03, 3.0, one(ControlKey::ABDUCTION, 0.035)).label("voiced frication"));
+        } else if let (Manner::Affricate, Some(ab)) = (def.manner, s.release_abduction) {
+            // a voiced affricate's frication needs flow: behind adducted folds the release gets
+            // only modal voicing's (and none while voicing has stopped in the closure). The folds
+            // part over the release only, and are back by the vowel: the ramps stay inside the
+            // consonant, and the hold ends 30 ms before its end.
+            let split = t0 + dur * 0.55;
+            gestures.push(Gesture::new(split, js_max(split, t1 - 0.03), js_min(0.03, split - t0), js_min(0.03, t1 - split), 3.0, one(ControlKey::ABDUCTION, ab)).label("voiced release"));
         }
         // a breathy-voiced release (Hindi bʱ): the folds part as the closure lets go and stay
         // apart into the start of the vowel

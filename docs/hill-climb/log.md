@@ -1542,3 +1542,30 @@ the owner decided by ear. The speed bench was not run.
   and the four existing demo songs: full plans and the first two seconds of audio.
 - Bench against the previous commit's recorded run: os=2 27.1%→25.8% of one core,
   os=1 12.1%→11.8%. Shared rendering is unchanged; these noisy figures show no slowdown.
+
+### Japanese voiced affricates: the folds part for the frication (#8)
+
+- Cause: a voiced affricate releases behind adducted folds. Voicing stops in the closure (male
+  じゃ: voicing 0.9 → 0.04 at the release), so the first 10 ms of the release have about
+  10 cm³/s of glottal flow, and the rest modal voicing's (mean about 110), where ちゃ has 200–400
+  through the same 0.15–0.2 cm² constriction. The noise goes with the flow squared: male じゃ's
+  3–10 kHz peak is −20 dB re the vowel's loudest frame, ちゃ's −13. The owner heard じゃ as りゃ.
+  Experiment 15 had the same lead for /dʒ/ ("quiet, not mistimed").
+- Change: `Segment::release_abduction`, which a front end may set on a voiced affricate; the
+  planner then parts the folds over the release only (from the 55 % split, hold ending 30 ms
+  before the consonant's end, ramps kept inside the consonant, strength 3). Japanese sets 0.15
+  on dʑ and d̪z̪ onsets, spoken and sung. Unset, the plan is what it was: English, Korean and
+  typed IPA are untouched, and no golden file changed.
+- Values, by the owner's ear on male じゃ じ じゅ じょ (probe renders): 0.035, 0.08, 0.15, 0.25 give a
+  3–10 kHz peak of −17.5, −14.8, −13.1, −12.4 dB (0: −21.2). The owner chose 0.15 over 0.08.
+- Result (CLI, じゃ): male −20.0 → −12.9 dB (ちゃ: −12.9); female −35.5 → −28.6 dB, which is still
+  at her vowel's own level in that band. Test, 3 bodies × じゃ じ じゅ じょ × rates 0.7 / 1 / 1.5:
+  release flow ×1.3–2.1, mean oral noise source ×1.9–9, vowel voicing ≥ 0.99 after it.
+- Not fixed: the female and child frication level (experiment 13: every fricative is 10–15 dB
+  lower re the vowel than the male's), so their じゃ gains little that can be heard. The spoken
+  [ʑ] between vowels (あじゃ) is 34 ms and reaches its constriction for the last 14 ms only.
+  English /dʒ/ keeps the fault.
+- Validation: goldens blessed twice (none changed), `bun run test` (220 Rust, 2 ignored; 69
+  Bun), typecheck, build, `bun tools/e2e.ts` against the preview (exit 0). Bench os=2 25.8 →
+  26.3 %, os=1 11.8 → 12.0 % of one core (noise; the planner alone changed). No ASR, TSP or CSD
+  run: the other languages' plans are unchanged, and Japanese is judged by ear.

@@ -64,6 +64,10 @@ pub struct Segment {
     /// vowel said with them part-open (IPA combining diaeresis below); None or false: modal
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub breathy: Option<bool>,
+    /// how far the folds part while a voiced affricate's frication is released (the voice's
+    /// abduction control), as its front end decides it; None: they stay as for the vowel
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release_abduction: Option<f64>,
     /// speech pitch relative to the phrase's base (× f0, before declination), in place of the
     /// stress accents: the high and low morae of a pitch-accent language
     #[serde(default, skip_serializing_if = "Option::is_none")]

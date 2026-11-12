@@ -352,6 +352,12 @@ fn syllables(word: &str, prev: Option<&Syllable>, sung: bool) -> Vec<Syllable> {
             }
         }
     }
+    // じ ぢ ず づ as affricates: the folds part for the frication (see the constant)
+    for s in &mut out {
+        for c in s.onset.iter_mut().filter(|c| matches!(c.ipa.as_str(), "dʑ" | "dz" | "d̪z̪")) {
+            c.release_abduction = Some(VOICED_AFFRICATE_ABDUCTION);
+        }
+    }
     if sung {
         for s in &mut out {
             // A 50 ms vowel can be entirely covered by stop release and the following
@@ -393,6 +399,12 @@ pub const REGISTER: [f64; 2] = [-1.0, 1.5];
 /// the folds close after the release (the planner keeps them apart through it). At 1 a medial か
 /// had about 52 ms from release to voicing, more than half its 87 ms vowel; at 0.3, 28 ms.
 pub const ASPIRATION: f64 = 0.3;
+/// How far the folds part while a Japanese voiced affricate (じ ぢ ず づ after a pause, ん or っ)
+/// releases its frication. With the folds as for the vowel, じゃ's release had a tenth of ちゃ's
+/// noise and was heard as りゃ (male: 3–10 kHz peak −21 dB re the vowel's peak, against ちゃ's −13);
+/// at 0.15 it is −13 dB and the vowel after it still voices. Chosen by ear from 0.035, 0.08, 0.15
+/// and 0.25. The other languages' voiced affricates are left as they were.
+pub const VOICED_AFFRICATE_ABDUCTION: f64 = 0.15;
 /// a spoken mora's vowel (s, before [`TEMPO`])
 const MORA_VOWEL: f64 = 0.17;
 /// a spoken ん (s)
@@ -506,7 +518,7 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
                 let dur = inventory::consonants().iter()
                     .find(|d| d.ipa == c.ipa && d.manner == Manner::Affricate && d.voicing == Voicing::Voiced)
                     .map(|d| d.dur);
-                segs.push(Segment { ipa: c.ipa.clone(), dur, stress: Some(0), ..Default::default() });
+                segs.push(Segment { ipa: c.ipa.clone(), dur, stress: Some(0), release_abduction: c.release_abduction, ..Default::default() });
             }
             segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(if vowel { MORA_VOWEL } else { MORA_N }), stress: Some(1), pitch: Some(*pitch), release_timing: s.nucleus.release_timing, ..Default::default() });
             for c in &s.coda {

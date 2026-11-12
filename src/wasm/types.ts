@@ -165,6 +165,8 @@ export interface Segment {
   palatalized?: boolean;
   /** breathy voice: a voiced stop or affricate's release (IPA ʱ), or a vowel (combining diaeresis below) */
   breathy?: boolean;
+  /** how far the folds part while a voiced affricate releases its frication (Japanese sets it) */
+  releaseAbduction?: number;
   /** speech pitch relative to the phrase's base, in place of stress accents (Japanese) */
   pitch?: number;
   /** Keep a finite speech-final nasal through the scheduled breath tail. */
