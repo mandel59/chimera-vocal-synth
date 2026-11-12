@@ -99,10 +99,13 @@ pub static DEMO_SONGS: &[DemoSong] = &[
         // https://mem.recreation.or.jp/wpmem/wp-content/uploads/2021/09/recrew_689_2020_02-2.pdf
         // Dotted-eighth / sixteenth rhythm. As in 荒城の月, rests extend the preceding note;
         // punctuation supplies a breath. ぽう, やい and ちょい subdivide the same pitch.
+        // Breaths follow rests, not grammatical boundaries: にわたぬき, しがてっぽー and
+        // このはでちょい stay in one phrase so the next onset fits before its beat instead
+        // of closing over the preceding short vowel (the reported disappearing で).
         // First あん and せん share a note (𛅧); the second せ・ん has separate notes.
         name: "あんたがたどこさ",
         bpm: 100.0,
-        lyrics: "あ𛅧たがたどこさ、ひごさ、ひごどこさ、くまもとさ、くまもとどこさ、せ𛅧ばさ、せんばやまにわ、たぬきがおってさ、それをりょーしが、てっぽーでうってさ、にてさ、やいてさ、くってさ、それをこのはで、ちょいとかぶせ。",
+        lyrics: "あ𛅧たがたどこさ、ひごさ、ひごどこさ、くまもとさ、くまもとどこさ、せ𛅧ばさ、せんばやまにわたぬきがおってさ、それをりょーしがてっぽーでうってさ、にてさ、やいてさ、くってさ、それをこのはでちょいとかぶせ。",
         notes: &[
             [62.0, 0.75], [62.0, 0.25], [62.0, 0.75], [65.0, 0.25],
             [67.0, 0.75], [65.0, 0.25], [67.0, 1.0],

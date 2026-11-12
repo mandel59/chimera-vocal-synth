@@ -137,3 +137,9 @@ interval. This is a shared opt-in timing parameter, not a language check in the 
 English/Korean, speech and default hand-written JSON retain their previous timing. Existing
 Japanese songs also receive the corrected aspiration and short-note allocation; their note
 pitches, beats and syllable counts are retained. Native-speaker listening remains required.
+
+In Antagata, breath marks follow the notated rests. `せんばやまにわたぬき`,
+`りょーしがてっぽー`, and `このはでちょい` remain within phrases. A grammatical
+comma here used to split planning before the next onset was fitted into the note, so
+「で」could be covered by the following affricate despite having a planned vowel.
+`tests/song_phrasing.rs` checks both the rest positions and audible, open, voiced /e/.

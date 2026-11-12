@@ -60,6 +60,8 @@ and the CLI) under a React UI. See the README.
   and the held final nasal's loudness).
 - **A planned sung vowel must actually voice.** Check short Japanese stop–vowel–fricative notes
   with `cargo test -p chimera --test sung_vowel`; segment length alone missed a silent と.
+- **Demo breath marks follow rests, not grammatical boundaries.** A false break bypasses
+  fitting and can close over the previous vowel. Check `cargo test -p chimera --test song_phrasing`.
 - **Nothing copyrighted goes in git.** `public/shows/` is gitignored; never ship CSD audio or
   anything derived from it.
 - **Voice tuning follows `docs/hill-climb/README.md`** and never edits its judges.
