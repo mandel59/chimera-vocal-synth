@@ -54,12 +54,12 @@ const MIN_CONSONANT: f64 = 0.012;
 
 /// Fit the consonants between a vowel and the next one into `span`, the time from the vowel's
 /// beat to the next vowel's (or to the end of a phrase's last note): when they leave the vowel
-/// less than [`MIN_VOWEL`], they shrink in proportion (each down to [`MIN_CONSONANT`]), so the
+/// less than `min_vowel` (normally [`MIN_VOWEL`]), they shrink in proportion (each down to [`MIN_CONSONANT`]), so the
 /// next vowel still lands on its beat and a fast run doesn't drift later note by note.
-fn fit(groups: [&mut [Segment]; 2], span: f64) {
+fn fit(groups: [&mut [Segment]; 2], span: f64, min_vowel: f64) {
     let [a, b] = groups;
     let cons = total(a) + total(b);
-    let room = span - MIN_VOWEL;
+    let room = span - min_vowel;
     if cons <= room || cons <= 0.0 {
         return;
     }
@@ -137,7 +137,8 @@ pub fn plan_song(notes: &[SungNote], o: &SongOptions) -> Plan {
         let last_end = times[j] + notes[j].beats * beat - js_min(reserve, 0.3 * notes[j].beats * beat);
         for k in i..=j {
             let (span, next) = if k < j { (times[k + 1] - times[k], &mut onsets[k + 1 - i][..]) } else { (last_end - times[k], &mut [][..]) };
-            fit([&mut codas[k - i][..], next], span);
+            let min_vowel = js_max(MIN_VOWEL, notes[k].syl.min_vowel.unwrap_or(MIN_VOWEL));
+            fit([&mut codas[k - i][..], next], span, min_vowel);
         }
         let first_onset = total(&onsets[0]);
         for k in i..=j {

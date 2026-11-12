@@ -214,6 +214,8 @@ export interface Syllable {
   melisma?: boolean;
   wordEnd: boolean;
   phraseEnd: boolean;
+  /** Minimum sung nucleus interval in seconds; unset keeps the 50 ms default. */
+  minVowel?: number;
 }
 
 export interface SungNote {

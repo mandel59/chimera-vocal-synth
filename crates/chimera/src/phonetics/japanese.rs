@@ -272,11 +272,11 @@ fn syllables(word: &str, prev: Option<&Syllable>, sung: bool) -> Vec<Syllable> {
     for (k, m) in ms.iter().enumerate() {
         match m {
             Mora::Sung(onset, vowel, text) => {
-                out.push(Syllable { text: text.clone(), onset: onset.iter().map(|c| seg(c)).collect(), nucleus: seg(vowel), coda: vec![], melisma: None, word_end: false, phrase_end: false });
+                out.push(Syllable { text: text.clone(), onset: onset.iter().map(|c| seg(c)).collect(), nucleus: seg(vowel), coda: vec![], melisma: None, word_end: false, phrase_end: false, ..Default::default() });
             }
             Mora::N(text) => {
                 let n = moraic_nasal(next_consonant(&ms, k + 1));
-                out.push(Syllable { text: text.clone(), onset: vec![], nucleus: seg(n), coda: vec![], melisma: None, word_end: false, phrase_end: false });
+                out.push(Syllable { text: text.clone(), onset: vec![], nucleus: seg(n), coda: vec![], melisma: None, word_end: false, phrase_end: false, ..Default::default() });
             }
             Mora::AttachedN => {
                 if sung {
@@ -290,7 +290,7 @@ fn syllables(word: &str, prev: Option<&Syllable>, sung: bool) -> Vec<Syllable> {
             Mora::Hold(text) => {
                 if let Some(p) = out.last().or(prev) {
                     let nucleus = p.nucleus.clone();
-                    out.push(Syllable { text: text.clone(), onset: vec![], nucleus, coda: vec![], melisma: Some(true), word_end: false, phrase_end: false });
+                    out.push(Syllable { text: text.clone(), onset: vec![], nucleus, coda: vec![], melisma: Some(true), word_end: false, phrase_end: false, ..Default::default() });
                 }
             }
             Mora::Geminate => {
@@ -326,6 +326,22 @@ fn syllables(word: &str, prev: Option<&Syllable>, sung: bool) -> Vec<Syllable> {
                 ("ɟ", true) => c.ipa = "ɲ".into(),
                 ("g", false) => c.ipa = "ɣ".into(),
                 _ => {}
+            }
+        }
+    }
+    if sung {
+        for s in &mut out {
+            // A 50 ms vowel can be entirely covered by stop release and the following
+            // fricative's anticipatory glottal opening. Reserve an audible voiced interval
+            // within the note; the singer still keeps every beat and the consonant floor.
+            if matches!(s.nucleus.ipa.as_str(), "a" | "i" | "ɯ" | "e" | "o") {
+                s.min_vowel = Some(0.1);
+            }
+            // Japanese does not use the English strongly aspirated stop series.
+            for c in s.onset.iter_mut().chain(s.coda.iter_mut()) {
+                if matches!(c.ipa.as_str(), "p" | "t" | "t̪" | "k" | "c" | "tɕ" | "t̪s̪") {
+                    c.aspirated = Some(false);
+                }
             }
         }
     }

@@ -266,7 +266,7 @@ fn read_lyrics_with_kana(text: &str, front_ends: &[&dyn FrontEnd], kana: bool) -
             }
             Token::Mark(_) => {
                 if let Some(prev) = out.last() {
-                    let s = Syllable { text: "~".into(), onset: vec![], nucleus: prev.nucleus.clone(), coda: vec![], melisma: Some(true), word_end: prev.word_end, phrase_end: false, ..Default::default() };
+                    let s = Syllable { text: "~".into(), onset: vec![], nucleus: prev.nucleus.clone(), coda: vec![], melisma: Some(true), min_vowel: prev.min_vowel, word_end: prev.word_end, phrase_end: false, ..Default::default() };
                     out.push(s);
                 }
             }

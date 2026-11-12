@@ -58,6 +58,8 @@ and the CLI) under a React UI. See the README.
 - **A sustained sung nasal does not decide a spoken nasal's closure.** Keep Japanese speech and
   singing distinct; check `cargo test -p chimera --test japanese` (spoken phrase-final closure
   and the held final nasal's loudness).
+- **A planned sung vowel must actually voice.** Check short Japanese stop–vowel–fricative notes
+  with `cargo test -p chimera --test sung_vowel`; segment length alone missed a silent と.
 - **Nothing copyrighted goes in git.** `public/shows/` is gitignored; never ship CSD audio or
   anything derived from it.
 - **Voice tuning follows `docs/hill-climb/README.md`** and never edits its judges.

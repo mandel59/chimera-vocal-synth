@@ -124,3 +124,16 @@ planning rule, not detection of the last voiced sample; `releaseHold` controls r
 and cannot substitute for retaining a target. Unset fields preserve legacy plans. Internal
 segments, open-ended notes and sung phrases ignore this request. Japanese speech-final `ɴ`
 opts in; English and Korean do not. No gesture wire format or layout version changes.
+
+Sung syllables may opt into `minVowel` (seconds), a minimum nucleus interval before
+`plan_song` squeezes the coda and next onset. Unset preserves the existing 50 ms budget;
+negative or smaller requests cannot reduce that default. The note grid and 12 ms consonant
+floor still take precedence, so an impossibly short note is not stretched to satisfy it.
+Long-vowel marks and melismas retain the request. Japanese vowel-bearing syllables request
+100 ms and explicitly mark their voiceless stops/affricates `aspirated: false`. At 100 BPM,
+「くまもとさ」previously left /o/ only 54 ms between /t/ release and anticipatory /s/
+abduction, with essentially no voicing; the two changes together leave an audible voiced
+interval. This is a shared opt-in timing parameter, not a language check in the planner.
+English/Korean, speech and default hand-written JSON retain their previous timing. Existing
+Japanese songs also receive the corrected aspiration and short-note allocation; their note
+pitches, beats and syllable counts are retained. Native-speaker listening remains required.

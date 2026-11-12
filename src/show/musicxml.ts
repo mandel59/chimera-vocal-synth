@@ -187,7 +187,7 @@ export function morae(text: string): number {
 
 /** The syllable that holds `prev`'s vowel onto another note. */
 export function hold(prev: Syllable): Syllable {
-  return { text: "~", onset: [], nucleus: prev.nucleus, coda: [], melisma: true, wordEnd: prev.wordEnd, phraseEnd: false };
+  return { text: "~", onset: [], nucleus: prev.nucleus, coda: [], melisma: true, minVowel: prev.minVowel, wordEnd: prev.wordEnd, phraseEnd: false };
 }
 
 const AH: Syllable = { text: "ah", onset: [], nucleus: { ipa: "ɑ", stress: 1 }, coda: [], wordEnd: true, phraseEnd: false };

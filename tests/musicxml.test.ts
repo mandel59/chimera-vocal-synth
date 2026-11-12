@@ -156,6 +156,13 @@ describe("lyrics on the notes", () => {
     expect(three.filter((n) => n.syl!.melisma).length).toBe(3 - lyricsToSyllables("fire").length);
   });
 
+  test("a Japanese melisma retains the minimum vowel time", () => {
+    const xml = score([notes({ p: "C4", d: 2, l: "あ" }, { p: "D4", d: 2, l: "-" })]);
+    const sung = singScore(parseMusicXml(xml), lyricsToSyllables);
+    expect(sung.map((n) => n.syl!.minVowel)).toEqual([0.1, 0.1]);
+    expect(sung[1].syl!.melisma).toBe(true);
+  });
+
   test("no lyrics: the typed syllables, a note each", () => {
     const xml = score([notes({ p: "C4", d: 2 }, { p: "D4", d: 2 }, { p: "E4", d: 2 })]);
     const sung = singScore(parseMusicXml(xml), lyricsToSyllables, lyricsToSyllables("la di"));

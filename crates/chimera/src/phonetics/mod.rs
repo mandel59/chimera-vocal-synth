@@ -149,6 +149,10 @@ pub struct Syllable {
     /// continue the previous syllable's vowel at a new pitch
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub melisma: Option<bool>,
+    /// Minimum sung nucleus interval before consonants are squeezed (seconds). Unset: 50 ms.
+    /// The note grid and consonant floors still take precedence when a note is too short.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_vowel: Option<f64>,
     /// last syllable of a word (codas sound here; phrase breaks follow punctuation); may be left
     /// out of hand-written JSON (false)
     #[serde(default)]
