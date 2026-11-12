@@ -129,7 +129,7 @@ describe("lyrics on the notes", () => {
   test("kana: ん closes on the next note's consonant, っ holds, a two-mora note splits", () => {
     const xml = score([notes({ p: "C4", d: 2, l: "さ" }, { p: "D4", d: 2, l: "ん" }, { p: "E4", d: 2, l: "ぽ" }, { p: "F4", d: 2, l: "っ" }, { p: "G4", d: 2, l: "とも" })]);
     const sung = singScore(parseMusicXml(xml), lyricsToSyllables);
-    expect(sung.map((n) => n.syl!.text)).toEqual(["さ", "ん", "ぽ", "~", "と", "も"]);
+    expect(sung.map((n) => n.syl!.text)).toEqual(["さ", "ん", "ぽっ", "~", "と", "も"]);
     // ん before ぽ is [m], as it would be written together
     expect(sung[1].syl!.nucleus.ipa).toBe("m");
     // とも shares its note's beat

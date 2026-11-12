@@ -124,7 +124,7 @@ fn antagata_has_a_note_for_every_syllable_including_the_two_kinds_of_n() {
     assert_eq!(x.iter().filter(|s| s.text == "ん").count(), 1);
     let k = x
         .windows(3)
-        .find(|w| w[0].text == "く" && w[1].text == "て" && w[2].text == "さ")
+        .find(|w| w[0].text == "くっ" && w[1].text == "て" && w[2].text == "さ")
         .unwrap();
     assert_eq!(k[0].coda[0].ipa, "t̪");
     assert_eq!(k[1].onset[0].ipa, "t̪");

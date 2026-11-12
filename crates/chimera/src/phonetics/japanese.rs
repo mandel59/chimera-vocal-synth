@@ -130,7 +130,7 @@ enum Mora {
     Sung(Vec<&'static str>, &'static str, String),
     N(String),
     AttachedN,
-    Geminate,
+    Geminate(char),
     Hold(String),
 }
 
@@ -145,7 +145,7 @@ fn morae(word: &str) -> Vec<Mora> {
             'ー' => out.push(Mora::Hold(raw.to_string())),
             'ん' => out.push(Mora::N(raw.to_string())),
             '𛅧' => out.push(Mora::AttachedN),
-            'っ' => out.push(Mora::Geminate),
+            'っ' => out.push(Mora::Geminate(raw)),
             _ => {
                 let Some((onset, vowel)) = base(c) else { continue };
                 let mut onset: Vec<&'static str> = onset.to_vec();
@@ -200,7 +200,7 @@ fn next_consonant(ms: &[Mora], from: usize) -> Option<&'static str> {
     ms[from..].iter().find_map(|m| match m {
         Mora::Sung(o, _, _) => Some(o.first().copied()),
         Mora::N(_) | Mora::Hold(_) => Some(None),
-        Mora::Geminate | Mora::AttachedN => None,
+        Mora::Geminate(_) | Mora::AttachedN => None,
     })?
 }
 
@@ -293,9 +293,11 @@ fn syllables(word: &str, prev: Option<&Syllable>, sung: bool) -> Vec<Syllable> {
                     out.push(Syllable { text: text.clone(), onset: vec![], nucleus, coda: vec![], melisma: Some(true), word_end: false, phrase_end: false, ..Default::default() });
                 }
             }
-            Mora::Geminate => {
+            Mora::Geminate(raw) => {
                 if let Some(p) = out.last_mut() {
                     p.coda.push(seg(geminate(next_consonant(&ms, k + 1))));
+                    // The closure shares this note; keep it in pitch and mouth labels too.
+                    p.text.push(*raw);
                 }
             }
         }

@@ -197,6 +197,40 @@ async function run(viewport: { width: number; height: number }, tag: string) {
   if (attachedText.join("|") !== "あん|た|せ|ん") errors.push(`[${tag}] attached nasal display/cursor: ${attachedText}`);
   await page.locator(".syllables .syl").nth(1).click();
   if (await nextSyl() !== "た") errors.push(`[${tag}] attached nasal shifted the syllable cursor`);
+  // Pitch-roll labels and the mouth bubbles must retain the written geminate coda.
+  await page.evaluate(() => {
+    const w = window as typeof window & { __sokuonRender?: { pitch: string[]; bubble: string[]; restore: () => void } };
+    const original = CanvasRenderingContext2D.prototype.fillText;
+    const capture = { pitch: [] as string[], bubble: [] as string[], restore: () => { CanvasRenderingContext2D.prototype.fillText = original; } };
+    w.__sokuonRender = capture;
+    CanvasRenderingContext2D.prototype.fillText = function (...args: Parameters<typeof original>) {
+      const text = args[0];
+      if (text === "おっ" || text === "くっ") {
+        const target = this.canvas.matches(".roll-canvas") ? capture.pitch : this.canvas.closest(".anatomy") ? capture.bubble : null;
+        if (target && !target.includes(text)) target.push(text);
+      }
+      return original.apply(this, args);
+    };
+  });
+  for (const text of ["おってさ", "くってさ"]) {
+    await lyricsBox.fill(text);
+    await page.locator(".syllables .syl").first().click();
+    await page.keyboard.down("d");
+    await page.waitForTimeout(400);
+    await page.keyboard.up("d");
+    await page.waitForTimeout(150);
+  }
+  const sokuonRender = await page.evaluate(() => {
+    const w = window as typeof window & { __sokuonRender?: { pitch: string[]; bubble: string[]; restore: () => void } };
+    const c = w.__sokuonRender!;
+    c.restore();
+    delete w.__sokuonRender;
+    return { pitch: c.pitch, bubble: c.bubble };
+  });
+  logs.push(`[${tag}] sing geminate labels: ${JSON.stringify(sokuonRender)}`);
+  for (const text of ["おっ", "くっ"]) {
+    if (!sokuonRender.pitch.includes(text) || !sokuonRender.bubble.includes(text)) errors.push(`[${tag}] geminate missing from pitch roll or mouth bubble: ${text}`);
+  }
   await lyricsBox.fill("𛅧");
   if (!(await page.locator(".score-error").count())) errors.push(`[${tag}] unattached nasal did not report an error`);
   await lyricsBox.fill(savedLyrics);

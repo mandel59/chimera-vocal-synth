@@ -83,9 +83,9 @@ fn spoken_n_within_a_phrase_can_stay_open_or_assimilate() {
 
 #[test]
 fn sokuon_closes_the_mora_before_and_takes_no_note() {
-    assert_eq!(show("かった"), "か:k.a.t̪ た:t̪.a.");
-    assert_eq!(show("まっちゃ"), "ま:m.a.t ちゃ:tɕ.a.");
-    assert_eq!(show("あっ"), "あ:.a.ʔ");
+    assert_eq!(show("かった"), "かっ:k.a.t̪ た:t̪.a.");
+    assert_eq!(show("まっちゃ"), "まっ:m.a.t ちゃ:tɕ.a.");
+    assert_eq!(show("あっ"), "あっ:.a.ʔ");
 }
 
 #[test]
@@ -175,7 +175,7 @@ fn japanese_alveolars_are_laminal_dental_and_english_ones_are_not() {
     assert_eq!(spoken("たださなざつ"), "t̪ a d̪ a s̪ a n̪ a z̪ a t̪s̪ ɯ");
     // ん before た closes with it; っ before ち keeps the alveolar closure that ち releases
     assert_eq!(show("ほんと"), "ほ:h.o. ん:.n̪. と:t̪.o.");
-    assert_eq!(show("まっちゃ"), "ま:m.a.t ちゃ:tɕ.a.");
+    assert_eq!(show("まっちゃ"), "まっ:m.a.t ちゃ:tɕ.a.");
     assert!(!spoken("stand tall").contains('\u{32a}'));
 }
 
@@ -284,7 +284,7 @@ fn release_excess(text: &str, ipa: &str) -> Vec<(String, f64)> {
 #[test]
 fn ga_inside_a_word_is_a_nasal_sung_and_a_fricative_spoken() {
     // sung (lyrics): 鼻濁音 [ŋ] after a vowel inside a word, [ɲ] for ぎゃ ぎゅ ぎょ
-    assert_eq!(show("がっこう"), "が:g.a.k こ:k.o. う:.ɯ.");
+    assert_eq!(show("がっこう"), "がっ:g.a.k こ:k.o. う:.ɯ.");
     assert_eq!(show("りんご"), "り:ɾ.i. ん:.ŋ. ご:g.o."); // after ん: [ŋg]
     assert_eq!(show("かがみ"), "か:k.a. が:ŋ.a. み:m.i.");
     assert_eq!(show("あめが ぎんが"), "あ:.a. め:m.e. が:ŋ.a. ぎ:g.i. ん:.ŋ. が:g.a.");
