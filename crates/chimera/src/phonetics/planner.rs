@@ -182,6 +182,7 @@ struct Seg<'a> {
     palatalized: Option<bool>,
     breathy: Option<bool>,
     release_abduction: Option<f64>,
+    devoiced: Option<&'a str>,
 }
 
 /// glottal abduction of breathy voice: /ɦ/'s, a gap the folds still vibrate across
@@ -223,10 +224,10 @@ fn plan_utterance_bounded(input: &[Segment], o: &PlanOptions, pause: Option<f64>
             let base = durs[si];
             for (i, p) in parts.iter().enumerate() {
                 let dur = if parts.len() > 1 { base * (if i == 0 { 0.55 } else { 0.45 }) } else { base };
-                segs.push(Seg { ipa: p, dur: Some(dur), stress: s.stress, f0: s.f0, pitch: s.pitch, release_timing: s.release_timing, def: None, vowel: None, glide_from: i > 0, aspirated: None, vot: None, nasalized: s.nasalized, palatalized: None, breathy: s.breathy, release_abduction: None });
+                segs.push(Seg { ipa: p, dur: Some(dur), stress: s.stress, f0: s.f0, pitch: s.pitch, release_timing: s.release_timing, def: None, vowel: None, glide_from: i > 0, aspirated: None, vot: None, nasalized: s.nasalized, palatalized: None, breathy: s.breathy, release_abduction: None, devoiced: None });
             }
         } else {
-            segs.push(Seg { ipa: &s.ipa, dur: Some(durs[si]), stress: s.stress, f0: s.f0, pitch: s.pitch, release_timing: s.release_timing, def: None, vowel: None, glide_from: false, aspirated: s.aspirated, vot: s.vot, nasalized: s.nasalized, palatalized: s.palatalized, breathy: s.breathy, release_abduction: s.release_abduction });
+            segs.push(Seg { ipa: &s.ipa, dur: Some(durs[si]), stress: s.stress, f0: s.f0, pitch: s.pitch, release_timing: s.release_timing, def: None, vowel: None, glide_from: false, aspirated: s.aspirated, vot: s.vot, nasalized: s.nasalized, palatalized: s.palatalized, breathy: s.breathy, release_abduction: s.release_abduction, devoiced: s.devoiced.as_deref() });
         }
     }
     for s in segs.iter_mut() {
@@ -296,6 +297,15 @@ fn plan_utterance_bounded(input: &[Segment], o: &PlanOptions, pause: Option<f64>
             if s.breathy == Some(true) {
                 // breathy: the folds part-open, as for /ɦ/
                 gestures.push(Gesture::new(t0, end, 0.03, 0.03, 5.0, one(ControlKey::ABDUCTION, BREATHY_ABDUCTION)).label("breathy"));
+            }
+            if let Some(h) = s.devoiced {
+                // devoiced: the folds as far apart as for a voiceless consonant, joining its
+                // neighbours' openings, and the fricative's constriction held under the vowel.
+                // With the folds apart alone, the breath went through the open vowel: an [h].
+                gestures.push(Gesture::new(t0 - 0.015, end + 0.005, 0.03, 0.03, 6.0, one(ControlKey::ABDUCTION, 0.3)).label("devoiced"));
+                if let Some(held) = phoneme(h, body) {
+                    oral_gestures_into(&held, &held.targets, t0 - 0.01, end, 1.3, "devoiced", &mut gestures);
+                }
             }
         }
         let Some(def) = s.def.as_ref() else { continue };

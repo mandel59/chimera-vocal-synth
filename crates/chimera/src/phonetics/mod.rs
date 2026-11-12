@@ -68,6 +68,12 @@ pub struct Segment {
     /// abduction control), as its front end decides it; None: they stay as for the vowel
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub release_abduction: Option<f64>,
+    /// a vowel said without voice, as its front end decides it (Japanese すき, です): the folds are
+    /// apart for its whole length and the constriction of this fricative (IPA) is held through
+    /// it, over the vowel's own tongue shape (an empty string: nothing is held, where the vowel
+    /// is narrow enough itself). The vowel keeps its time. None: voiced
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub devoiced: Option<String>,
     /// speech pitch relative to the phrase's base (× f0, before declination), in place of the
     /// stress accents: the high and low morae of a pitch-accent language
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -167,6 +167,8 @@ export interface Segment {
   breathy?: boolean;
   /** how far the folds part while a voiced affricate releases its frication (Japanese sets it) */
   releaseAbduction?: number;
+  /** a vowel said without voice, through this fricative's constriction (IPA, or "" for none); Japanese speech sets it */
+  devoiced?: string;
   /** speech pitch relative to the phrase's base, in place of stress accents (Japanese) */
   pitch?: number;
   /** Keep a finite speech-final nasal through the scheduled breath tail. */

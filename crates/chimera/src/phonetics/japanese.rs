@@ -14,9 +14,10 @@
 //! し ち じ are the alveolo-palatal ɕ tɕ dʑ (unrounded, unlike English sh ch j), う is the
 //! unrounded ɯ, and が行 inside a word the nasal ŋ (鼻濁音) sung, the fricative ɣ spoken.
 //!
-//! Speech ([`to_phrases`]) uses the same morae, timed evenly (Japanese is mora-timed). Vowels
-//! aren't devoiced (すき, です): dropping the vowel, the only voiceless vowel the planner can make,
-//! was heard as a missing mora.
+//! Speech ([`to_phrases`]) uses the same morae, timed evenly (Japanese is mora-timed). A short い
+//! or う between voiceless consonants is devoiced (すき, あした, です; see `devoiced_morae`): the mora
+//! keeps its time, said through the consonant's constriction with the folds apart. Dropping the
+//! vowel was heard as a missing mora, and parting the folds alone as an [h].
 //!
 //! Spoken words get Tokyo pitch accent: low first mora and high after it (平板, the default), or
 //! with a fall marked after the accented mora by ＼ (also \ or ꜜ): は＼し 箸, はし＼ 橋, はし 端. A
@@ -462,9 +463,55 @@ pub fn to_phrases(text: &str) -> Vec<Phrase> {
     phrases
 }
 
+/// The fricative a devoiced い or う is said through after this consonant: a fricative goes on, an
+/// affricate's release goes on, and a stop releases into the fricative of the vowel's own place
+/// (き [kç], ぷ [pɸ]). く holds nothing (""): う is as narrow at the velum as the fricative, and a
+/// held [x], which leaves the front–back place to the vowel, opened it. None: the vowel isn't
+/// devoiced after this consonant.
+fn devoiced_through(onset: &str, vowel: &str) -> Option<&'static str> {
+    Some(match (onset, vowel) {
+        ("s̪", _) => "s̪",
+        ("ɕ", _) => "ɕ",
+        ("ç", _) => "ç",
+        ("ɸ", _) => "ɸ",
+        ("tɕ", _) => "ɕ",
+        ("t̪s̪", _) => "s̪",
+        ("k" | "p", "i") => "ç",
+        ("k", "ɯ") => "",
+        ("p", "ɯ") => "ɸ",
+        _ => return None,
+    })
+}
+
+/// Which spoken morae are devoiced (すき, あした, です), each with the fricative it is said through:
+/// a short い or う after a single voiceless consonant, before another voiceless consonant, or
+/// at the phrase's end after a fricative or affricate (です, ます). Not the accented mora, not
+/// before っ, and not the mora after a devoiced one (きくち devoices き, not く). A simple default
+/// for Tokyo speech: speakers, rate and style vary it. Sung morae are never devoiced.
+fn devoiced_morae(syls: &[(Syllable, Option<usize>, f64)], accented: &[bool]) -> Vec<Option<&'static str>> {
+    let voiceless = |c: &str| matches!(c, "p" | "t" | "t̪" | "k" | "c" | "s" | "s̪" | "ɕ" | "ç" | "ɸ" | "h" | "tɕ" | "ts" | "t̪s̪");
+    let mut out: Vec<Option<&'static str>> = Vec::with_capacity(syls.len());
+    for (k, (s, _, _)) in syls.iter().enumerate() {
+        let held = match (s.onset.as_slice(), s.nucleus.ipa.as_str()) {
+            ([c], v @ ("i" | "ɯ")) => devoiced_through(&c.ipa, v),
+            _ => None,
+        };
+        let next = syls.get(k + 1).map(|n| &n.0);
+        let before = match next {
+            Some(n) => n.melisma != Some(true) && n.onset.first().is_some_and(|c| voiceless(&c.ipa)),
+            None => s.onset.first().is_some_and(|c| !matches!(c.ipa.as_str(), "k" | "p")),
+        };
+        let free = s.melisma != Some(true) && s.coda.is_empty() && !accented[k] && !out.last().is_some_and(|p| p.is_some());
+        out.push(held.filter(|_| before && free));
+    }
+    out
+}
+
 fn phrase(words: &[String], delim: char) -> Option<Phrase> {
     // the phrase's morae, each with the index of the word it ends and its pitch
     let mut syls: Vec<(Syllable, Option<usize>, f64)> = Vec::new();
+    // whether each mora carries its word's accent (the last high mora before the fall)
+    let mut accented: Vec<bool> = Vec::new();
     let mut said = Vec::new();
     let mut step = 1.0;
     for w in words {
@@ -476,6 +523,7 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
         if s.iter().all(|x| x.melisma == Some(true)) {
             let p = syls.last().map_or(1.0, |x| x.2);
             syls.extend(s.drain(..).map(|x| (x, None, p)));
+            accented.resize(syls.len(), false);
             continue;
         }
         // the fall comes after the morae before the first mark
@@ -483,6 +531,7 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
         let n = s.len();
         let center = crate::math::pow(2.0, PITCH_CENTER_ST / 12.0);
         syls.extend(s.drain(..).enumerate().map(|(i, x)| (x, (i + 1 == n).then_some(said.len()), center * step * accent_pitch(i, n, nucleus))));
+        accented.extend((0..n).map(|i| i + 1 == nucleus));
         said.push(w.chars().filter(|c| !is_accent_mark(*c)).collect::<String>());
         if nucleus > 0 {
             step = js_max(DOWNSTEP_FLOOR, step * DOWNSTEP);
@@ -502,8 +551,9 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
             s.nucleus.release_timing = Some(ReleaseTiming::AfterBreath);
         }
     }
+    let devoiced = devoiced_morae(&syls, &accented);
     let mut segs: Vec<Segment> = Vec::new();
-    for (s, word_end, pitch) in &syls {
+    for ((s, word_end, pitch), held) in syls.iter().zip(devoiced) {
         if s.melisma == Some(true) {
             // ー is a mora of its own: the vowel goes on for a mora's vowel, at its own pitch
             // (キョ＼ー falls inside), so a long vowel is twice its short one. At 0.1 s it was 1.6
@@ -520,7 +570,7 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
                     .map(|d| d.dur);
                 segs.push(Segment { ipa: c.ipa.clone(), dur, stress: Some(0), release_abduction: c.release_abduction, ..Default::default() });
             }
-            segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(if vowel { MORA_VOWEL } else { MORA_N }), stress: Some(1), pitch: Some(*pitch), release_timing: s.nucleus.release_timing, ..Default::default() });
+            segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(if vowel { MORA_VOWEL } else { MORA_N }), stress: Some(1), pitch: Some(*pitch), release_timing: s.nucleus.release_timing, devoiced: held.map(str::to_string), ..Default::default() });
             for c in &s.coda {
                 segs.push(Segment { ipa: c.ipa.clone(), dur: Some(MORA_GEMINATE), stress: Some(0), ..Default::default() });
             }

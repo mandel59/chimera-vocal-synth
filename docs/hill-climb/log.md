@@ -1569,3 +1569,35 @@ the owner decided by ear. The speed bench was not run.
   Bun), typecheck, build, `bun tools/e2e.ts` against the preview (exit 0). Bench os=2 25.8 →
   26.3 %, os=1 11.8 → 12.0 % of one core (noise; the planner alone changed). No ASR, TSP or CSD
   run: the other languages' plans are unchanged, and Japanese is judged by ear.
+
+### Japanese speech: devoiced い and う keep their mora and the consonant's place (#12)
+
+- Before: no devoicing (dropping the vowel was heard as a missing mora). The vowels between
+  voiceless consonants were half voiceless anyway, by accident: of the 87 ms ɯ of すき 35 % was
+  voiced, the i of あした 36 %, the first i of しち 19 % (male).
+- Tried first, in a probe: the folds 0.3 apart over the vowel and nothing else. The owner heard
+  too much aspiration, and suggested the place of articulation wasn't held. Measured: over the
+  ɯ of すき the energy sat at 0–2 kHz (20 and 16 dB in the two 1 kHz bands, 15 dB at 3–5 kHz): the
+  [s] had let go and the breath went through the open vowel, an [h]. Half the breath pressure
+  (−3 to −6 dB), or the fricative taking 60 % of the vowel's time, left that [h] in the rest.
+  Folds only 0.15 apart: voicing comes back (です's ɯ 22 % voiced).
+- Change: `Segment::devoiced` names the fricative a voiceless vowel is said through. The planner
+  parts the folds (0.3, as for a voiceless consonant) over the vowel and holds that fricative's
+  constriction under it; the vowel keeps its time and its tongue shape. Same ɯ of すき: 0–2 kHz
+  12 and 4 dB, 3–5 kHz 24 and 18 dB, the level about the same. The owner chose this (probe
+  variant 7).
+- Japanese speech sets it (`devoiced_morae`): a short い or う after one voiceless consonant and
+  before another, or phrase-final after a fricative or affricate (です). Not the accented mora,
+  not before っ, not two morae in a row. A fricative goes on, an affricate's release goes on, き
+  and ぴ release into [ç], ぷ into [ɸ]. く holds nothing: a held [x] leaves the front–back place
+  to the vowel and opened the tract (narrower than 0.35 cm² for 30 % of the vowel, against 80 %
+  with ɯ alone). Singing, typed IPA and the other languages don't set it; no golden file changed.
+- Test (`tests/devoicing.rs`), 3 bodies × 6 words × rates 0.7 / 1 / 1.5: the vowel's time is
+  unchanged, voicing under 0.05, output not silent, the constriction narrower than 0.35 cm² for
+  over 80 % of the vowel (く: 60 %), the next vowel's voicing unchanged.
+- Not judged: the stops' releases (き, く, ぴ, ぷ) by ear, in the implemented build; ASR, TSP, CSD.
+  The rule is a simple default: no dictionary accent (#2), so です is devoiced only as the
+  phrase-final case, and speakers and rates vary all of it.
+- Validation: goldens blessed twice (none changed), `bun run test` (224 Rust, 2 ignored; 69
+  Bun), typecheck, build, e2e against the preview (exit 0). Bench os=2 27.2 %, os=1 12.4 % of
+  one core (26.3 / 12.0 before; the planner alone changed, on Japanese speech only).
