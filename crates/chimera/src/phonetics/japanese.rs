@@ -9,6 +9,7 @@
 //!    `phrase`). Singing keeps ɰ̃ there: a closed [ɴ] held on a note radiated through the nose
 //!    alone and sang 18-20 dB under a vowel, heard as a stuffed nose.
 //!  - っ takes no note: it closes the mora before it on the next consonant (かった → ka-t | ta).
+//!  - 𛅧 attaches a nasal coda to the preceding vowel on the same note (あ𛅧 → a-n).
 //!
 //! し ち じ are the alveolo-palatal ɕ tɕ dʑ (unrounded, unlike English sh ch j), う is the
 //! unrounded ɯ, and が行 inside a word the nasal ŋ (鼻濁音) sung, the fricative ɣ spoken.
@@ -27,7 +28,7 @@ use super::{Intonation, ReleaseTiming, Segment, Syllable};
 
 /// A kana character, or ー, that starts or continues a run of Japanese lyrics.
 pub fn is_kana(c: char) -> bool {
-    matches!(c, '\u{3041}'..='\u{3096}' | '\u{30A1}'..='\u{30FA}' | 'ー')
+    matches!(c, '\u{3041}'..='\u{3096}' | '\u{30A1}'..='\u{30FA}' | 'ー' | '𛅧')
 }
 
 /// Katakana → hiragana (ー and anything else unchanged).
@@ -128,6 +129,7 @@ enum Mora {
     /// onset, vowel, the kana it was written with
     Sung(Vec<&'static str>, &'static str, String),
     N(String),
+    AttachedN,
     Geminate,
     Hold(String),
 }
@@ -142,6 +144,7 @@ fn morae(word: &str) -> Vec<Mora> {
         match c {
             'ー' => out.push(Mora::Hold(raw.to_string())),
             'ん' => out.push(Mora::N(raw.to_string())),
+            '𛅧' => out.push(Mora::AttachedN),
             'っ' => out.push(Mora::Geminate),
             _ => {
                 let Some((onset, vowel)) = base(c) else { continue };
@@ -197,7 +200,7 @@ fn next_consonant(ms: &[Mora], from: usize) -> Option<&'static str> {
     ms[from..].iter().find_map(|m| match m {
         Mora::Sung(o, _, _) => Some(o.first().copied()),
         Mora::N(_) | Mora::Hold(_) => Some(None),
-        Mora::Geminate => None,
+        Mora::Geminate | Mora::AttachedN => None,
     })?
 }
 
@@ -238,6 +241,24 @@ fn dental(ipa: &str) -> Option<&'static str> {
     })
 }
 
+/// Explicit attached nasals must follow a vowel-bearing kana in the same word.
+/// No implicit attachment across whitespace, punctuation, a nasal or a geminate closure.
+pub fn validate_lyrics(text: &str) -> Result<(), String> {
+    let mut previous = None;
+    let mut vowel = false;
+    for c in text.chars() {
+        if c == '𛅧' {
+            if !vowel { return Err("𛅧 needs a preceding vowel-bearing kana in the same word".into()); }
+        }
+        if c == 'っ' || c == 'ッ' {
+            if previous == Some('𛅧') { return Err("𛅧 cannot share a syllable with a geminate closure".into()); }
+        }
+        vowel = base(hira(c)).is_some() || (c == 'ー' && vowel);
+        previous = Some(c);
+    }
+    Ok(())
+}
+
 /// One run of kana → sung syllables, one per note. `prev` is the syllable sung before the run (for
 /// a ー or っ at its start).
 pub fn kana_to_syllables(word: &str, prev: Option<&Syllable>) -> Vec<Syllable> {
@@ -256,6 +277,15 @@ fn syllables(word: &str, prev: Option<&Syllable>, sung: bool) -> Vec<Syllable> {
             Mora::N(text) => {
                 let n = moraic_nasal(next_consonant(&ms, k + 1));
                 out.push(Syllable { text: text.clone(), onset: vec![], nucleus: seg(n), coda: vec![], melisma: None, word_end: false, phrase_end: false });
+            }
+            Mora::AttachedN => {
+                if sung {
+                    if let Some(p) = out.last_mut() {
+                        p.coda.push(seg(moraic_nasal(next_consonant(&ms, k + 1))));
+                        // Display ordinary kana; the supplementary character is input notation.
+                        p.text.push('ん');
+                    }
+                }
             }
             Mora::Hold(text) => {
                 if let Some(p) = out.last().or(prev) {

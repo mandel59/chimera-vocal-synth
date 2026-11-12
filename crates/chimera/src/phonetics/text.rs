@@ -45,9 +45,13 @@ pub fn to_phrases(text: &str, language: Option<Language>, g: &EnglishG2P) -> Vec
     }
 }
 
-pub fn lyrics_to_syllables(text: &str, language: Option<Language>, g: &impl WordSource) -> Vec<Syllable> {
+pub fn lyrics_to_syllables(text: &str, language: Option<Language>, g: &impl WordSource) -> Result<Vec<Syllable>, String> {
     let kana = language.unwrap_or_else(|| Language::detect(text)) == Language::Japanese;
-    syllables::lyrics_with_kana(text, g, kana)
+    if text.contains('𛅧') {
+        if !kana { return Err("𛅧 requires Japanese lyrics".into()); }
+        japanese::validate_lyrics(text)?;
+    }
+    Ok(syllables::lyrics_with_kana(text, g, kana))
 }
 
 #[cfg(test)]
@@ -58,7 +62,7 @@ mod tests {
     fn english_entry_keeps_the_upstream_result() {
         let g = EnglishG2P::new();
         assert_eq!(to_phrases("Can you hear me?", Some(Language::English), &g), g.to_phrases("Can you hear me?"));
-        assert_eq!(lyrics_to_syllables("hello - world", Some(Language::English), &g), syllables::lyrics_to_syllables("hello - world", &g));
+        assert_eq!(lyrics_to_syllables("hello - world", Some(Language::English), &g).unwrap(), syllables::lyrics_to_syllables("hello - world", &g));
         assert!(g.to_phrases("さくら").is_empty(), "EnglishG2P must not dispatch Japanese");
     }
 
@@ -67,16 +71,16 @@ mod tests {
         let g = EnglishG2P::new();
         assert_eq!(to_phrases("さくら", None, &g), japanese::to_phrases("さくら"));
         assert!(to_phrases("さくら", Some(Language::English), &g).is_empty());
-        assert!(lyrics_to_syllables("さくら", Some(Language::English), &g).is_empty());
-        assert_eq!(lyrics_to_syllables("さくら", Some(Language::Japanese), &g).len(), 3);
+        assert!(lyrics_to_syllables("さくら", Some(Language::English), &g).unwrap().is_empty());
+        assert_eq!(lyrics_to_syllables("さくら", Some(Language::Japanese), &g).unwrap().len(), 3);
     }
 
     #[test]
     fn japanese_punctuation_does_not_change_the_english_lyric_entry() {
         let g = EnglishG2P::new();
-        let english = lyrics_to_syllables("hello。", Some(Language::English), &g);
+        let english = lyrics_to_syllables("hello。", Some(Language::English), &g).unwrap();
         assert!(!english.last().unwrap().phrase_end);
-        let japanese = lyrics_to_syllables("さくら。", Some(Language::Japanese), &g);
+        let japanese = lyrics_to_syllables("さくら。", Some(Language::Japanese), &g).unwrap();
         assert!(japanese.last().unwrap().phrase_end);
     }
 

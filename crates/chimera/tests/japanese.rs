@@ -5,7 +5,7 @@ use chimera::phonetics::syllables::WordSource;
 use chimera::phonetics::Syllable;
 
 fn lyrics_to_syllables(text: &str, g: &impl WordSource) -> Vec<Syllable> {
-    text::lyrics_to_syllables(text, None, g)
+    text::lyrics_to_syllables(text, None, g).unwrap()
 }
 
 // Japanese lyrics never reach the English dictionary

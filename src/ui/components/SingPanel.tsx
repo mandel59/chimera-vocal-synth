@@ -73,7 +73,7 @@ function Lyrics() {
         rows={1}
         aria-label="Lyrics to sing"
         placeholder="Type the words to sing"
-        title="Each note sings the next syllable. Hold a key while you press the next one to sing legato. A lone “-” between words holds a vowel over several notes; hyphens split a word your way (“ti-ger”)."
+        title="Each note sings the next syllable. Hold a key while you press the next one to sing legato. A lone “-” between words holds a vowel over several notes; hyphens split a word your way (“ti-ger”). Japanese: あん uses two notes; あ𛅧 shares one note. くってさ uses three notes: くっ・て・さ."
       />
       <div className="syllables" role="group" aria-label="Syllables. Each note sings the marked one; choose another to start there.">
         {scoreError && (

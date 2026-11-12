@@ -187,6 +187,28 @@ async function run(viewport: { width: number; height: number }, tag: string) {
   logs.push(`[${tag}] sing demo: rms ${demoRms.toFixed(4)} on "${demoNow}", after stop ${demoStopped.toFixed(4)}`);
   if (!(demoRms > 0.01) || !demoNow) errors.push(`[${tag}] demo song not singing (rms ${demoRms}, syllable ${demoNow})`);
   if (!(demoStopped < 1e-3)) errors.push(`[${tag}] demo still sounding after stop: ${demoStopped}`);
+  // Attached N is one note, including its supplementary Unicode input character; ordinary N
+  // stays separate. The displayed syllables and cursor use syllable indices, not UTF-16 offsets.
+  const lyricsBox = page.getByRole("textbox", { name: "Lyrics to sing" });
+  const savedLyrics = await lyricsBox.inputValue();
+  await page.getByLabel("Language", { exact: true }).selectOption("ja");
+  await lyricsBox.fill("あ𛅧た せん");
+  const attachedText = await page.locator(".syllables .syl").allTextContents();
+  if (attachedText.join("|") !== "あん|た|せ|ん") errors.push(`[${tag}] attached nasal display/cursor: ${attachedText}`);
+  await page.locator(".syllables .syl").nth(1).click();
+  if (await nextSyl() !== "た") errors.push(`[${tag}] attached nasal shifted the syllable cursor`);
+  await lyricsBox.fill("𛅧");
+  if (!(await page.locator(".score-error").count())) errors.push(`[${tag}] unattached nasal did not report an error`);
+  await lyricsBox.fill(savedLyrics);
+  await page.getByRole("combobox", { name: "Song" }).selectOption("あんたがたどこさ");
+  await page.getByRole("button", { name: /^Sing$/ }).click();
+  await page.waitForTimeout(250);
+  if (await page.locator(".syllables .syl").count() !== 81 || await page.locator(".syllables .syl").first().textContent() !== "あん") errors.push(`[${tag}] Antagata syllables do not match its 81 notes`);
+  await page.waitForTimeout(900);
+  if (!(await rms() > 0.001)) errors.push(`[${tag}] Antagata made no sound`);
+  await page.getByRole("button", { name: /^Stop$/ }).click();
+  await page.getByLabel("Language", { exact: true }).selectOption("en");
+  await page.getByRole("combobox", { name: "Song" }).selectOption("Made of air");
   // Imported scores join the upstream Song menu and share its Sing/Stop button.
   const ownLyrics = await page.getByRole("textbox", { name: "Lyrics to sing" }).inputValue();
   await page.getByLabel("Language", { exact: true }).selectOption("ja");

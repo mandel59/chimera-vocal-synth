@@ -308,7 +308,7 @@ export async function openScore(file: File, body: BodyMix, ready?: () => Promise
  * split a Japanese word, and が行 and ん follow the word), and a comma at each rest (a breath, if
  * the text is edited and sung from the keys). */
 function scoreLyrics(score: Score, language?: Language): string {
-  const kana = /[ぁ-ヿ]/;
+  const kana = /[ぁ-ヿ𛅧]/u;
   const japanese = language ? language === "ja" : score.notes.some((n) => n.lyric && kana.test(n.lyric.text));
   return score.notes
     .map((n) => {

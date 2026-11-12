@@ -142,7 +142,7 @@ fn dispatch(st: &mut State, req: &Value) -> Res {
             let input: String = arg(req, "text")?;
             let language: Option<Language> = arg(req, "language")?;
             check_reading(&input, language)?;
-            to_json(&text::lyrics_to_syllables(&input, language, &st.g2p))
+            to_json(&text::lyrics_to_syllables(&input, language, &st.g2p)?)
         }
         // ---------------------------------------------------------------- creatures
         "creaturePreview" => {

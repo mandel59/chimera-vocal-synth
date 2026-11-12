@@ -100,6 +100,22 @@ by hand, or to sing a language that has no front end yet.
   with English the default (#40).
 - **Tone and pitch accent** need pitch contours (#32 step 4).
 
+Japanese singing can distinguish a nasal on its own note (`あん`, two syllables) from a
+nasal attached to the preceding vowel (`あ𛅧`, one syllable). U+1B167 KATAKANA LETTER SMALL N
+is input notation; the displayed syllable is ordinary `あん`. The coda still assimilates to
+the next consonant. It is sung at the end of a note, after a melisma, or on live key release /
+legato transition, using the existing coda planner. It must immediately follow vowel-bearing
+kana or their long-vowel mark; unattached, repeated or conflicting coda marks are errors.
+This notation is for lyrics. Ordinary spoken `ん` retains the speech front end's rules.
+
+The traditional demo **あんたがたどこさ** uses `あ𛅧` and the first `せ𛅧` on single notes;
+the later `せん` uses separate notes. `くってさ` uses the existing `くっ | て | さ` split:
+the first note's stop coda overlaps the second note's stop onset, maintaining one closure.
+The melody's provenance and rhythm adaptations are documented beside its data in
+`crates/chimera/src/phonetics/songs.rs`. Demo songs currently have no explicit rests, so
+rests extend the preceding note with a phrase breath; vowels in `ぽう`, `やい` and `ちょい`
+subdivide a single pitch rather than introducing another notation.
+
 A finite speech-final closed nasal can opt into `Segment.releaseTiming: "afterBreath"`.
 The planner extends only its oral and velum gestures through the scheduled breath / exhale
 tail. Source gestures, segment times, pitch and `Plan.end` keep their original meaning.

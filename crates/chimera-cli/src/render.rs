@@ -242,7 +242,7 @@ mod language_tests {
         let plan = plan_phrases(&inputs, &PlanOptions { body: "male".into(), t0: 0.05, f0: Some(112.0), ..Default::default() });
         assert_eq!(serde_json::to_value(&said.plan).unwrap(), serde_json::to_value(&plan).unwrap());
         assert!(said.out.iter().any(|x| x.abs() > 1e-4));
-        assert!(said.shown.contains('ɰ'));
+        assert!(said.shown.contains('ɴ'));
         assert!(!said.shown.contains('ˈ'));
     }
 
@@ -306,7 +306,7 @@ pub fn song(ctx: &Ctx, a: &[String]) -> Result<(), String> {
     };
 
     for song in DEMO_SONGS {
-        let syl = language::lyrics_to_syllables(song.lyrics, None, &g);
+        let syl = language::lyrics_to_syllables(song.lyrics, None, &g)?;
         let octave = match body_name {
             "female" => song.octave.female,
             "child" => song.octave.child,
@@ -358,7 +358,7 @@ pub fn song(ctx: &Ctx, a: &[String]) -> Result<(), String> {
     }
 
     // live-style: key presses with gaps and one legato pair, as the keyboard would send them
-    let syl = language::lyrics_to_syllables("hello there my friend", Some(Language::English), &g);
+    let syl = language::lyrics_to_syllables("hello there my friend", Some(Language::English), &g)?;
     let mut v = HumanVoice::new(FS, b, 2);
     v.set_source(&SourcePatch {
         f0: Some(130.0),
@@ -606,7 +606,7 @@ pub fn notes(ctx: &Ctx, a: &[String]) -> Result<(), String> {
         if lang.unwrap_or_else(|| Language::detect(lyrics)) == Language::Japanese && language::needs_reading(lyrics) {
             return Err("Japanese lyrics need kana readings".into());
         }
-        language::lyrics_to_syllables(lyrics, lang, &g)
+        language::lyrics_to_syllables(lyrics, lang, &g)?
     };
     let sounding = raw.iter().filter(|n| n[0] > 0.0).count();
     if syl.len() != sounding {
