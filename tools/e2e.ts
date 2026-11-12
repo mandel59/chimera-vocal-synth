@@ -187,6 +187,29 @@ async function run(viewport: { width: number; height: number }, tag: string) {
   logs.push(`[${tag}] sing demo: rms ${demoRms.toFixed(4)} on "${demoNow}", after stop ${demoStopped.toFixed(4)}`);
   if (!(demoRms > 0.01) || !demoNow) errors.push(`[${tag}] demo song not singing (rms ${demoRms}, syllable ${demoNow})`);
   if (!(demoStopped < 1e-3)) errors.push(`[${tag}] demo still sounding after stop: ${demoStopped}`);
+  // Imported scores join the upstream Song menu and share its Sing/Stop button.
+  const ownLyrics = await page.getByRole("textbox", { name: "Lyrics to sing" }).inputValue();
+  await page.getByLabel("Language", { exact: true }).selectOption("ja");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "rebase.musicxml",
+    mimeType: "application/vnd.recordare.musicxml+xml",
+    buffer: Buffer.from(`<score-partwise><work><work-title>Rebase score</work-title></work>
+      <part-list><score-part id="P1"><part-name>Voice</part-name></score-part></part-list>
+      <part id="P1"><measure number="1"><attributes><divisions>1</divisions></attributes>
+      <direction><sound tempo="60"/></direction><note><pitch><step>A</step><octave>3</octave></pitch>
+      <duration>8</duration><lyric><text>あ</text></lyric></note></measure></part></score-partwise>`),
+  });
+  await page.getByRole("button", { name: /^Stop$/ }).waitFor();
+  await page.waitForTimeout(1000);
+  const scoreRms = await rms();
+  if (!(scoreRms > 0.01)) errors.push(`[${tag}] MusicXML score made no sound (${scoreRms})`);
+  await page.getByRole("button", { name: /^Stop$/ }).click();
+  await page.getByRole("combobox", { name: "Song" }).selectOption("Rebase score");
+  await page.getByRole("button", { name: /^Sing$/ }).click();
+  await page.getByRole("button", { name: /^Stop$/ }).waitFor();
+  await page.getByRole("button", { name: /^Stop$/ }).click();
+  if (await page.getByRole("textbox", { name: "Lyrics to sing" }).inputValue() !== ownLyrics) errors.push(`[${tag}] MusicXML lost the player's own lyrics`);
+  logs.push(`[${tag}] sing MusicXML: rms ${scoreRms.toFixed(4)}, replay and lyrics restored`);
   // bestiary: every creature, its first call, a key in held-voice mode, and the sustain toggle
   await page.getByRole("radio", { name: "Bestiary" }).click();
   await page.waitForTimeout(300);

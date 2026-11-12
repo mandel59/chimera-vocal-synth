@@ -1,7 +1,7 @@
 # Language selection
 
 The fork's Japanese and browser MusicXML features are ported onto upstream
-`eed4a5ff2695ad151df2210d012b2a4ab584f099`, from `japanese-lyrics` at
+`1d3ea496cad0` (originally `eed4a5ff2695ad151df2210d012b2a4ab584f099`), from `japanese-lyrics` at
 `79dcc2000a5b6a5c3e573416657b5ab953f9f0a0` (issue #5).
 
 `phonetics::text` selects English or Japanese before the existing planners:
@@ -50,8 +50,10 @@ use their existing planning APIs.
 
 This port does not introduce a new prosody representation, language-span
 model, source-map IDs, score model, shared whole-song compiler, resource
-registry or diagnostic schema. Mixed-language text is not a supported
-contract. UI character checks are only replaced where the explicit language
+registry or diagnostic schema. Speech does not analyze mixed-language spans.
+Lyrics retain upstream's English/Korean script router; Japanese selection adds a kana
+frontend, including long-vowel continuations across words. Shared IPA sounds use upstream's
+definitions. UI character checks are only replaced where the explicit language
 is already available. Analysis and planning remain outside audio rendering;
 the gesture layout and AudioWorklet are unchanged.
 

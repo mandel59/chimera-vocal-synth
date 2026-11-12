@@ -52,6 +52,9 @@ and the CLI) under a React UI. See the README.
   width. Check: `bun run lint:layout` and the cell-bound checks in `bun tools/e2e.ts`.
 - **The consonant chart must cover the engine's whole inventory**, including `Other` symbols.
   Check: the catalog comparison in `bun tools/e2e.ts`.
+- **Languages share one definition per IPA sound.** After integrating inventories, regenerate the
+  consonant table; check `cargo test -p chimera --test sounds` and
+  `cargo test -p chimera-cli --test cli calibrate_consonants_reproduces_the_committed_table`.
 - **Nothing copyrighted goes in git.** `public/shows/` is gitignored; never ship CSD audio or
   anything derived from it.
 - **Voice tuning follows `docs/hill-climb/README.md`** and never edits its judges.

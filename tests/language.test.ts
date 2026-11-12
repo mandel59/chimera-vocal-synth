@@ -6,6 +6,16 @@ const { EnglishG2P, textToPhrases, lyricsToSyllables, planPhrases } = await impo
 const { call } = await import("../src/wasm/chimera.ts");
 
 describe("language entry over WASM", () => {
+  test("Japanese selection preserves the upstream Korean lyric frontend", () => {
+    const korean = lyricsToSyllables("빵야", "en");
+    expect(korean.map((s) => s.text)).toEqual(["빵", "야"]);
+    const mixed = lyricsToSyllables("さ 빵야 ー", "ja");
+    expect(mixed.map((s) => s.text)).toEqual(["さ", "빵", "야", "ー"]);
+    expect(mixed.slice(1, 3)).toEqual(korean);
+    expect(mixed[3].nucleus).toEqual(korean[1].nucleus);
+    expect(mixed[3].melisma).toBe(true);
+  });
+
   test("English keeps its upstream entry, Japanese is selected outside EnglishG2P", () => {
     const g = new EnglishG2P();
     expect(textToPhrases("Can you hear me?", "en")).toEqual(g.toPhrases("Can you hear me?"));

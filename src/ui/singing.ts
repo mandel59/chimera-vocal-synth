@@ -291,11 +291,14 @@ export async function playDemo(name: string, body: BodyMix, ready?: () => Promis
 
 /** Read a MusicXML file (`.musicxml`, `.xml` or `.mxl`) into the loaded score, and sing it. */
 export async function openScore(file: File, body: BodyMix, ready?: () => Promise<void>): Promise<void> {
+  stopSinging();
+  const token = demoToken;
   try {
     const score = await readScoreFile(new Uint8Array(await file.arrayBuffer()), file.name);
+    if (token !== demoToken) return;
     useSing.setState({ score, scoreError: null });
   } catch (e) {
-    useSing.setState({ scoreError: `${file.name}: ${e instanceof Error ? e.message : String(e)}` });
+    if (token === demoToken) useSing.setState({ scoreError: `${file.name}: ${e instanceof Error ? e.message : String(e)}` });
     return;
   }
   await playScore(body, ready);

@@ -42,7 +42,7 @@ const engineStub = new Proxy(
   { get: (t, k) => (k in t ? t[k as string] : () => {}), set: (t, k, v) => ((t[k as string] = v), true) },
 );
 mock.module("../src/audio/AudioEngine.ts", () => ({ engine: engineStub }));
-const { useSing, singNoteOn, singNoteOff, playDemo, stopSinging, tickSinging } = await import("../src/ui/singing.ts");
+const { useSing, singNoteOn, singNoteOff, playDemo, openScore, stopSinging, tickSinging } = await import("../src/ui/singing.ts");
 const gesturesOf = () => voice.score();
 /** breath the score is giving now (strength-weighted activation of breath gestures) */
 const breathNow = () => {
@@ -190,6 +190,34 @@ describe("Sing mode, live keys", () => {
     sing().setLyrics("typed during the song");
     expect(sing().demo).toBeNull();
     expect(sing().lyrics).toBe("typed during the song");
+  });
+
+  test("stopping while a MusicXML file loads cancels its playback", async () => {
+    let finish!: (data: ArrayBuffer) => void;
+    let started = false;
+    const file = { name: "slow.musicxml", arrayBuffer: () => new Promise<ArrayBuffer>((r) => (finish = r)) } as File;
+    const waiting = openScore(file, MALE, async () => { started = true; });
+    stopSinging();
+    finish(new TextEncoder().encode(`<score-partwise><part id="P1"><measure>
+      <attributes><divisions>1</divisions></attributes><note><pitch><step>A</step><octave>3</octave></pitch>
+      <duration>1</duration><lyric><text>ah</text></lyric></note></measure></part></score-partwise>`).buffer);
+    await waiting;
+    expect(started).toBe(false);
+    expect(useSing.getState().demo).toBeNull();
+  });
+
+  test("stopping a demo restores lyrics with the selected language", async () => {
+    voice = new WasmVoice(FS);
+    const sing = useSing.getState;
+    sing().setLanguage("en");
+    sing().setLyrics("hi さくら");
+    const original = sing().syllables;
+    await playDemo("Made of air", MALE, () => Promise.resolve());
+    stopSinging();
+    expect(sing().lyrics).toBe("hi さくら");
+    expect(sing().syllables).toEqual(original);
+    expect(sing().language).toBe("en");
+    sing().setLanguage(undefined);
   });
 
   test("a quick next note drops the last one's breath-out; leaving Sing cancels a pending ending", () => {
