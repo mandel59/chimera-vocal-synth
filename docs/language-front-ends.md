@@ -99,3 +99,12 @@ by hand, or to sing a language that has no front end yet.
   Latin text is English. The second Latin-script front end brings an explicit language choice,
   with English the default (#40).
 - **Tone and pitch accent** need pitch contours (#32 step 4).
+
+A finite speech-final closed nasal can opt into `Segment.releaseTiming: "afterBreath"`.
+The planner extends only its oral and velum gestures through the scheduled breath / exhale
+tail. Source gestures, segment times, pitch and `Plan.end` keep their original meaning.
+A following phrase bounds the release ramps, including a zero-length pause. This is a
+planning rule, not detection of the last voiced sample; `releaseHold` controls release speed
+and cannot substitute for retaining a target. Unset fields preserve legacy plans. Internal
+segments, open-ended notes and sung phrases ignore this request. Japanese speech-final `ɴ`
+opts in; English and Korean do not. No gesture wire format or layout version changes.

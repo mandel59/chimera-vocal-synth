@@ -52,17 +52,33 @@ fn moraic_nasal_takes_the_next_place() {
     assert_eq!(show("かんだ"), "か:k.a. ん:.n̪. だ:d̪.a.");
     assert_eq!(show("りんご"), "り:ɾ.i. ん:.ŋ. ご:g.o.");
     assert_eq!(show("ほん"), "ほ:h.o. ん:.ɰ̃.");
-    // a fricative, glide or vowel after it: no closure, the nasal vowel (sung as spoken)
+    // a fricative, glide or vowel after it: no closure; sung word ends also stay open
     assert_eq!(show("あんしん"), "あ:.a. ん:.ɰ̃. し:ɕ.i. ん:.ɰ̃.");
     assert_eq!(show("でんわ"), "で:d̪.e. ん:.ɰ̃. わ:w.a.");
 }
 
 #[test]
-fn spoken_n_without_a_closure_is_a_nasal_vowel() {
-    // asked 2026-11-09: the ん of かもしれません should be a nasal vowel, not a closed [ɴ]
-    assert_eq!(spoken("せん。"), "s̪ e ɰ̃");
+fn spoken_phrase_final_n_can_close_without_changing_singing() {
+    assert_eq!(spoken("ほん"), "h o ɴ");
+    assert_eq!(spoken("ホン。"), "h o ɴ");
+    assert_eq!(spoken("せん、ほん？"), "s̪ e ɴ | h o ɴ");
+    assert_eq!(spoken("ん。"), "ɴ");
+    // A word boundary alone is not a phrase end: keep an open nasal before を.
+    assert_eq!(spoken("ほん を"), "h o ɰ̃ o");
+    assert_eq!(spoken("ほん ー"), "h o ɰ̃ ɰ̃");
+    // Singing still holds the open nasal on its own note.
+    assert_eq!(show("ほん"), "ほ:h.o. ん:.ɰ̃.");
+}
+
+#[test]
+fn spoken_n_within_a_phrase_can_stay_open_or_assimilate() {
     assert_eq!(spoken("たんい"), "t̪ a ɰ̃ i");
+    assert_eq!(spoken("あんしん"), "a ɰ̃ ɕ i ɴ");
+    assert_eq!(spoken("でんわ"), "d̪ e ɰ̃ w a");
     assert_eq!(spoken("さんぽ"), "s̪ a m p o");
+    assert_eq!(spoken("ほんと"), "h o n̪ t̪ o");
+    assert_eq!(spoken("まんじゅう"), "m a ɲ dʑ ɯ ɯ");
+    assert_eq!(spoken("りんご"), "ɾ i ŋ g o");
 }
 
 #[test]
@@ -127,7 +143,7 @@ fn the_pitch_falls_on_a_moraic_nasal() {
     use chimera::control::score::ControlKey;
     use chimera::phonetics::planner::{PlanOptions, plan_utterance};
     let p = &text::to_phrases("ませ＼ん", None, &EnglishG2P::new())[0];
-    assert_eq!(p.segments.last().unwrap().ipa, "ɰ̃");
+    assert_eq!(p.segments.last().unwrap().ipa, "ɴ");
     let plan = plan_utterance(&p.segments, &PlanOptions { f0: Some(100.0), ..Default::default() });
     let targets: Vec<f64> = plan.gestures.iter().filter_map(|g| g.targets.get(ControlKey::F0)).collect();
     assert_eq!(targets.len(), 3, "one per mora: {targets:?}");

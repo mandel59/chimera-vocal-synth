@@ -33,6 +33,15 @@ text into kana with accent marks before calling the same Japanese frontend.
 Hand-marked readings are retained. The browser does not load that dictionary
 and reports a kanji-reading error rather than silently dropping the kanji.
 
+Japanese speech uses a closed uvular nasal `ɴ` for a final `ん` at the end of
+a phrase, including before a punctuation pause. This is a simple default,
+not a model of the variation with the preceding vowel and speaker
+([Maekawa](https://doi.org/10.1017/S0025100321000050)). Accent-phrase word
+boundaries alone do not trigger it: `ほん を` keeps an open `ɰ̃`. Existing
+assimilation before consonants is retained. Singing and an explicit `ー`
+continuation keep the open nasal for sustained notes; the quietness of a
+held `ɴ` does not determine the articulation of ordinary speech.
+
 `render::say` keeps its English signature for the unmodified TSP judge. CLI
 `render text` selects a language (`--lang en|ja`, or compatibility detection)
 and uses the same rendering body after any dictionary preparation. Its

@@ -167,6 +167,8 @@ export interface Segment {
   breathy?: boolean;
   /** speech pitch relative to the phrase's base, in place of stress accents (Japanese) */
   pitch?: number;
+  /** Keep a finite speech-final nasal through the scheduled breath tail. */
+  releaseTiming?: "afterBreath";
 }
 
 export interface PlannedSegment {

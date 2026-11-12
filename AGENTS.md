@@ -55,6 +55,9 @@ and the CLI) under a React UI. See the README.
 - **Languages share one definition per IPA sound.** After integrating inventories, regenerate the
   consonant table; check `cargo test -p chimera --test sounds` and
   `cargo test -p chimera-cli --test cli calibrate_consonants_reproduces_the_committed_table`.
+- **A sustained sung nasal does not decide a spoken nasal's closure.** Keep Japanese speech and
+  singing distinct; check `cargo test -p chimera --test japanese` (spoken phrase-final closure
+  and the held final nasal's loudness).
 - **Nothing copyrighted goes in git.** `public/shows/` is gitignored; never ship CSD audio or
   anything derived from it.
 - **Voice tuning follows `docs/hill-climb/README.md`** and never edits its judges.

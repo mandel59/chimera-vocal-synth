@@ -4,9 +4,10 @@
 //!  - ー holds the previous vowel onto the next note (a melisma, like "-").
 //!  - ん is a mora of its own, a nasal sung on its note, closed where the next stop or nasal is
 //!    made (m before p b m, n before t d n ts dz ɾ, ɲ before tɕ dʑ, ŋ before k g). Before a vowel,
-//!    a glide, a fricative, h, or at the end, it doesn't close: it is the nasal vowel ɰ̃ (本, 単位,
-//!    安心, 電話), spoken or sung. A closed [ɴ] held on a note radiated through the nose alone and
-//!    sang 18-20 dB under a vowel, heard as a stuffed nose.
+//!    a glide, a fricative, h, or at the end of a sung word, it uses the open nasal ɰ̃. Speech
+//!    also keeps it open within a phrase, but permits a closed [ɴ] at the phrase's end (see
+//!    `phrase`). Singing keeps ɰ̃ there: a closed [ɴ] held on a note radiated through the nose
+//!    alone and sang 18-20 dB under a vowel, heard as a stuffed nose.
 //!  - っ takes no note: it closes the mora before it on the next consonant (かった → ka-t | ta).
 //!
 //! し ち じ are the alveolo-palatal ɕ tɕ dʑ (unrounded, unlike English sh ch j), う is the
@@ -22,7 +23,7 @@
 
 use super::Phrase;
 use crate::math::js_max;
-use super::{Intonation, Segment, Syllable};
+use super::{Intonation, ReleaseTiming, Segment, Syllable};
 
 /// A kana character, or ー, that starts or continues a run of Japanese lyrics.
 pub fn is_kana(c: char) -> bool {
@@ -200,8 +201,8 @@ fn next_consonant(ms: &[Mora], from: usize) -> Option<&'static str> {
     })?
 }
 
-/// ん before a stop, affricate or nasal closes where it does; anywhere else it is the nasal
-/// vowel ɰ̃.
+/// ん before a stop, affricate or nasal closes where it does; otherwise start with an open ɰ̃.
+/// Speech chooses its phrase-final closure later, after all words have been assembled.
 fn moraic_nasal(next: Option<&str>) -> &'static str {
     match next {
         Some("p" | "b" | "m") => "m",
@@ -409,19 +410,30 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
     if syls.is_empty() {
         return None;
     }
+    // A spoken phrase may end in a closed nasal. Use [ɴ] as a simple default articulation,
+    // not a claim that every Japanese final /N/ is uvular: its closure varies with the speaker
+    // and preceding vowel (Maekawa, doi:10.1017/S0025100321000050). Do this after joining words
+    // so a dictionary's accent-phrase boundary alone cannot close the ん of e.g. ほん を.
+    // An explicit long-vowel continuation keeps the open nasal, as singing does.
+    if let Some((s, _, _)) = syls.last_mut() {
+        if s.nucleus.ipa == "ɰ̃" && s.melisma != Some(true) {
+            s.nucleus.ipa = "ɴ".into();
+            s.nucleus.release_timing = Some(ReleaseTiming::AfterBreath);
+        }
+    }
     let mut segs: Vec<Segment> = Vec::new();
     for (s, word_end, pitch) in &syls {
         if s.melisma == Some(true) {
             // ー is a mora of its own: the vowel goes on for a mora's vowel, at its own pitch
             // (キョ＼ー falls inside), so a long vowel is twice its short one. At 0.1 s it was 1.6
             // times, and ソード's oo was heard short.
-            segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(MORA_VOWEL), stress: Some(1), pitch: Some(*pitch), ..Default::default() });
+            segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(MORA_VOWEL), stress: Some(1), pitch: Some(*pitch), release_timing: s.nucleus.release_timing, ..Default::default() });
         } else {
             let vowel = matches!(s.nucleus.ipa.as_str(), "a" | "i" | "ɯ" | "e" | "o");
             for c in &s.onset {
                 segs.push(Segment { ipa: c.ipa.clone(), stress: Some(0), ..Default::default() });
             }
-            segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(if vowel { MORA_VOWEL } else { MORA_N }), stress: Some(1), pitch: Some(*pitch), ..Default::default() });
+            segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(if vowel { MORA_VOWEL } else { MORA_N }), stress: Some(1), pitch: Some(*pitch), release_timing: s.nucleus.release_timing, ..Default::default() });
             for c in &s.coda {
                 segs.push(Segment { ipa: c.ipa.clone(), dur: Some(MORA_GEMINATE), stress: Some(0), ..Default::default() });
             }

@@ -7,7 +7,7 @@
 
 use super::durations::{SegInfo, klatt_durations};
 use super::inventory::{Glottal, Manner, PhonemeDef, Voicing, phoneme};
-use super::{Intonation, Plan, PlannedSegment, Segment};
+use super::{Intonation, Plan, PlannedSegment, ReleaseTiming, Segment};
 use crate::anatomy::human::{ArticKey, ArticPatch, BodyMix, BodyName};
 use crate::control::score::{ControlKey, Gesture, Targets};
 use crate::math::{js_max, js_min, js_round, pow};
@@ -172,6 +172,7 @@ struct Seg<'a> {
     stress: Option<u8>,
     f0: Option<f64>,
     pitch: Option<f64>,
+    release_timing: Option<ReleaseTiming>,
     def: Option<PhonemeDef>,
     vowel: Option<ArticPatch>,
     glide_from: bool,
@@ -199,6 +200,11 @@ struct Span {
 }
 
 pub fn plan_utterance(input: &[Segment], o: &PlanOptions) -> Plan {
+    plan_utterance_bounded(input, o, None)
+}
+
+// A following phrase limits the silent articulation tail, without moving its onset.
+fn plan_utterance_bounded(input: &[Segment], o: &PlanOptions, pause: Option<f64>) -> Plan {
     let rate = o.rate.unwrap_or(1.0);
     let body = o.body;
     // durations by the Klatt rules, on whole segments (diphthongs before they are split)
@@ -216,10 +222,10 @@ pub fn plan_utterance(input: &[Segment], o: &PlanOptions) -> Plan {
             let base = durs[si];
             for (i, p) in parts.iter().enumerate() {
                 let dur = if parts.len() > 1 { base * (if i == 0 { 0.55 } else { 0.45 }) } else { base };
-                segs.push(Seg { ipa: p, dur: Some(dur), stress: s.stress, f0: s.f0, pitch: s.pitch, def: None, vowel: None, glide_from: i > 0, aspirated: None, vot: None, nasalized: s.nasalized, palatalized: None, breathy: s.breathy });
+                segs.push(Seg { ipa: p, dur: Some(dur), stress: s.stress, f0: s.f0, pitch: s.pitch, release_timing: s.release_timing, def: None, vowel: None, glide_from: i > 0, aspirated: None, vot: None, nasalized: s.nasalized, palatalized: None, breathy: s.breathy });
             }
         } else {
-            segs.push(Seg { ipa: &s.ipa, dur: Some(durs[si]), stress: s.stress, f0: s.f0, pitch: s.pitch, def: None, vowel: None, glide_from: false, aspirated: s.aspirated, vot: s.vot, nasalized: s.nasalized, palatalized: s.palatalized, breathy: s.breathy });
+            segs.push(Seg { ipa: &s.ipa, dur: Some(durs[si]), stress: s.stress, f0: s.f0, pitch: s.pitch, release_timing: s.release_timing, def: None, vowel: None, glide_from: false, aspirated: s.aspirated, vot: s.vot, nasalized: s.nasalized, palatalized: s.palatalized, breathy: s.breathy });
         }
     }
     for s in segs.iter_mut() {
@@ -267,6 +273,7 @@ pub fn plan_utterance(input: &[Segment], o: &PlanOptions) -> Plan {
         gestures.push(Gesture::new(times[i].t0, times[i].t1, r_in, r_out, 1.0, artic_targets(segs[i].vowel.as_ref().unwrap())).label(segs[i].ipa));
     }
     // utterance-initial/final consonants: lend them the nearest vowel's body posture
+    let mut final_nasal_gestures = Vec::new();
     // ---- consonant gestures
     for (i, s) in segs.iter().enumerate() {
         let Span { t0, t1 } = times[i];
@@ -293,6 +300,10 @@ pub fn plan_utterance(input: &[Segment], o: &PlanOptions) -> Plan {
         let Some(def) = s.def.as_ref() else { continue };
         let next_vowel = i < segs.len() - 1 && segs[i + 1].vowel.is_some();
         let prev_seg = if i > 0 { Some(&segs[i - 1]) } else { None };
+        let hold_final = i + 1 == segs.len() && def.manner == Manner::Nasal
+            && s.release_timing == Some(ReleaseTiming::AfterBreath)
+            && o.open_end != Some(true) && o.sung != Some(true);
+        let oral_start = gestures.len();
         let mut add_oral = |tg: &ArticPatch, a: f64, b: f64, speed: f64, label: &str| oral_gestures_into(def, tg, a, b, speed, label, &mut gestures);
         match def.manner {
             // a stop that closes behind another stop's closure, its articulator already placed by
@@ -325,9 +336,13 @@ pub fn plan_utterance(input: &[Segment], o: &PlanOptions) -> Plan {
             Manner::Fricative | Manner::Approximant | Manner::Lateral => add_oral(&def.targets, t0, t1, 1.3, def.ipa),
             Manner::Glottal | Manner::Vowel => {}
         }
+        if hold_final {
+            final_nasal_gestures.extend(oral_start..gestures.len());
+        }
         // nasality: the velum lowers in anticipation (into the preceding vowel, as in English) and
         // seals again by the end of the nasal; 0.45 cm² is ample for the murmur
         if def.nasal == Some(true) {
+            if hold_final { final_nasal_gestures.push(gestures.len()); }
             gestures.push(Gesture::new(t0 - 0.02, t1 - 0.02, 0.05, 0.03, 4.0, one(ArticKey::Velum, 0.45)).label("velum"));
         }
         // phonation
@@ -383,7 +398,9 @@ pub fn plan_utterance(input: &[Segment], o: &PlanOptions) -> Plan {
     // the first segment starts, and builds into adducted folds or behind the first constriction
     // rather than voicing ahead of the note. Speech and live notes keep their 20 ms lead.
     let breath_at = if sung { BREATH_SUNG_AT } else { 0.04 };
-    gestures.push(Gesture::new(o.t0 + breath_at, end, 0.04, if open_end { 0.07 } else { 0.05 }, 1.0, one(ControlKey::BREATH, 1.0)).label("breath"));
+    let breath = Gesture::new(o.t0 + breath_at, end, 0.04, if open_end { 0.07 } else { 0.05 }, 1.0, one(ControlKey::BREATH, 1.0)).label("breath");
+    let mut release_at = breath.end();
+    gestures.push(breath);
     // ---- end of the breath group: the folds part as the breath stops, so a final obstruent is
     // released into silence instead of into an added vowel ("cat-uh"). After a vowel or sonorant
     // they part once the pressure has fallen, so the voice fades out instead of ending in an [h].
@@ -391,7 +408,20 @@ pub fn plan_utterance(input: &[Segment], o: &PlanOptions) -> Plan {
         let last = segs.last();
         let sonorant = last.is_some_and(|l| l.vowel.is_some()) || last.and_then(|l| l.def).is_some_and(|d| matches!(d.manner, Manner::Nasal | Manner::Approximant | Manner::Lateral | Manner::Tap | Manner::Trill));
         let at = end + if sonorant { 0.045 } else { 0.015 };
-        gestures.push(Gesture::new(at, end + 0.1, 0.03, 0.06, 6.0, one(ControlKey::ABDUCTION, 0.22)).label(EXHALE_LABEL));
+        let exhale = Gesture::new(at, end + 0.1, 0.03, 0.06, 6.0, one(ControlKey::ABDUCTION, 0.22)).label(EXHALE_LABEL);
+        release_at = js_max(release_at, exhale.end());
+        gestures.push(exhale);
+    }
+    // Keep both the oral closure and nasal port until the scheduled voice tail has ended.
+    // releaseHold affects speed, not activation; extending t1 keeps the actual target active.
+    for index in final_nasal_gestures {
+        let g = &mut gestures[index];
+        g.t1 = js_max(g.t1, release_at);
+        if let Some(pause) = pause {
+            let limit = end + js_max(0.0, pause);
+            g.ramp_out = js_min(g.ramp_out, js_max(0.0, limit - g.t0));
+            g.t1 = js_min(g.t1, limit - g.ramp_out);
+        }
     }
     // ---- intonation: pitch targets on vowels
     let f0 = o.f0.unwrap_or(110.0);
@@ -614,12 +644,12 @@ pub struct PhraseInput {
 pub fn plan_phrases(phrases: &[PhraseInput], o: &PlanOptions) -> Plan {
     let mut all = Plan { gestures: Vec::new(), segments: Vec::new(), end: o.t0 };
     let mut t = o.t0;
-    for p in phrases {
+    for (i, p) in phrases.iter().enumerate() {
         let rate = p.rate.map_or(o.rate, |r| Some(o.rate.unwrap_or(1.0) * r));
         // the language's register: its male and female offsets, blended by the body
         let f0 = p.register.map_or(o.f0, |[m, f]| Some(o.f0.unwrap_or(110.0) * pow(2.0, (m + (f - m) * o.body.female) / 12.0)));
         let aspiration = p.aspiration.or(o.aspiration);
-        let plan = plan_utterance(&p.segments, &PlanOptions { t0: t, intonation: Some(p.intonation.unwrap_or(Intonation::Statement)), rate, f0, aspiration, ..o.clone() });
+        let plan = plan_utterance_bounded(&p.segments, &PlanOptions { t0: t, intonation: Some(p.intonation.unwrap_or(Intonation::Statement)), rate, f0, aspiration, ..o.clone() }, (i + 1 < phrases.len()).then_some(p.pause.unwrap_or(0.25)));
         all.gestures.extend_from_slice(&plan.gestures);
         all.segments.extend(plan.segments);
         t = plan.end + p.pause.unwrap_or(0.25);

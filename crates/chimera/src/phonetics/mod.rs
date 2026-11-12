@@ -19,6 +19,14 @@ pub mod songs;
 pub mod syllables;
 pub mod vowel_data;
 
+/// How a finite phrase-final constriction is released. Unset preserves the existing timing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ReleaseTiming {
+    /// Keep the articulation through the scheduled breath/voice tail (not runtime detection).
+    AfterBreath,
+}
+
 /// One phoneme in an utterance.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -60,6 +68,9 @@ pub struct Segment {
     /// stress accents: the high and low morae of a pitch-accent language
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pitch: Option<f64>,
+    /// Finite speech only; currently supported for a phrase-final closed nasal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release_timing: Option<ReleaseTiming>,
 }
 
 impl Segment {
