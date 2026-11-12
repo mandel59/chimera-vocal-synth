@@ -68,3 +68,14 @@ test("common Japanese merges yotsugana spellings over WASM", () => {
     );
   }
 });
+
+test("Japanese voiced affricates keep their inherent duration before the phrase rate", () => {
+  const phrases = textToPhrases("じ。", "ja");
+  const consonant = phrases[0].segments.find((s) => s.ipa === "dʑ")!;
+  expect(consonant.dur).toBe(0.12);
+  const p = planPhrases(phrases, { body: { female: 0, child: 0 }, t0: 0.05 });
+  const span = p.segments.find((s) => s.ipa === "dʑ")!;
+  expect(span.t1 - span.t0).toBeCloseTo(0.12 / phrases[0].rate!, 6);
+  expect(span.t1 - span.t0).toBeGreaterThan(0.05);
+  expect(lyricsToSyllables("じ", "ja")[0].onset[0].dur).toBeUndefined();
+});

@@ -1462,3 +1462,83 @@ the owner decided by ear. The speed bench was not run.
 - Verdict: the owner heard no clear difference in さくらさくら. Reverted.
 - Next: the male voice's spread (い, う 6–8 dB under あ at A3) is not formant tuning's: every note
   is below F1 there.
+
+### 24. Japanese dʑ: separate closure, release flow and vowel recovery (#8; diagnostic only)
+
+- Hypothesis: the short voiced affricate has a closure but insufficient flow through its
+  fricative release. A plain voiced fricative gets 0.035 abduction; the affricate gets none.
+  Check this before moving the tongue or repeating experiment 15's duration extension.
+- Baseline: `3e4bac71`. At 48 kHz, os=2, male 110 Hz / female 200 Hz / child 260 Hz,
+  `/ˈɑdʑɑ/` has a planned 47 ms affricate and 13 / 13 / 14 ms with oral area below 0.01 cm².
+  `/ˈɑʑɑ/` does not close. The opening window's 2–8 kHz energy relative to the following
+  vowel is +0.50 / +0.92 / −0.63 dB, reproducing #8's male/female figures. This is not an
+  isolated frication measurement: voiced harmonics contribute too.
+- Controlled candidate: append a release-only gesture with the existing voiced-fricative
+  target 0.035 and strength 3. No tongue, duration, pitch or source changes. An unbounded
+  30 ms release ramp was compared with one ending inside the consonant: ramp-in is at most
+  the closure duration; hold ends at max(split, end−30 ms); ramp-out is at most the release
+  duration. Only the bounded version is offered for listening. This is a test fixture,
+  **not a production-planner change**.
+- Bounded result, from split to 15 ms after the planned affricate end (cm³/s): mean glottal
+  flow 100.0→117.0 male, 84.8→101.6 female, 54.1→66.5 child. Oral-noise source peak in that
+  window 26.8→30.6, 28.7→30.9, 15.5→22.7 (internal amplitude, not radiated SPL).
+  Geometry and closure time are unchanged. In all 15 body×vowel/context cases (VCV plus
+  ja/ji/ju/jo), flow increases and following-vowel voicing at +20…45 ms remains above 0.99.
+- The bounded VCV's same 2–8 kHz metric is +0.71 / −2.72 / −5.81 dB. It does not move the
+  same way as flow/source amplitude, so it cannot alone decide whether the consonant sounds
+  more like ja. Do not optimize this one band value or call these figures a recognition gain.
+- Reproduction/guards: `cargo test -p chimera --test voiced_affricates -- --nocapture`.
+  The test reports baseline and bounded-candidate measurements and guards real closure,
+  audible/voiced following vowels and the reference fricative's open airway in all bodies.
+  It is not a perceptual judge and does not prescribe that a tap must never make contact.
+- Listening material: `/tmp/chimera-issue8/{male,female,child}-{before,candidate}.wav`,
+  VCV then ja/ji/ju/jo, one gain shared by both variants for each body. Raw audio, plans,
+  per-ms telemetry and the temporary probe source are also there. They are not committed.
+- Actual kana path: Japanese speech divides the planned dʑ by TEMPO=1.95, to **25.64 ms**.
+  Across all three bodies and じゃ/じ/じゅ/じょ, all 11 sampled milliseconds of the planned
+  release remain below 0.01 cm² (male じゃ max 0.00464 cm², female/child 0). In contrast, the 47 ms VCV seals for only 1 ms in its release.
+  The bounded glottal candidate does not change this. Child じゅ even moves mean flow
+  24.7→23.4 cm³/s and oral source peak 12.5→8.5. The 15-case IPA result does not generalise
+  to the 12 kana cases; following-vowel voicing remains above 0.94, but release flow is
+  not consistently improved.
+- A target was first run failing on the old engine, then un-ignored with the front-end
+  repair below: `cargo test -p chimera --test voiced_affricates japanese_kana_has_an_open_fricative_release_before_the_vowel`.
+  It requires an open release within the planned consonant. This is necessary but does
+  not by itself establish a perceptually clear Japanese ja.
+- Verdict: the comparison isolates a release-flow effect, but it does not fix the short
+  kana release and perceptual improvement has not been established. Candidate rejected.
+  No ASR/TSP/CSD verdict is claimed; the common-model candidate still needs the normal
+  speech/singer guards before keeping it. No targets, generated tables or judges changed.
+- Next: investigate the compressed affricate's closure/release timing and gesture
+  overlap. Keep the real closure and following vowel while creating time for frication;
+  do not adopt a glottal-only fix from the IPA comparison. Listening material remains
+  available to assess what the controlled change sounds like. A missing closure has
+  been ruled out for the reported VCV, not every context or body setting. The historical experiment 29 is on another branch and
+  is not an upstream fix that this port accidentally removed.
+
+
+### Japanese voiced-affricate duration: repair the kana path's second shortening (#8)
+
+- Cause: Japanese onsets left `Segment.dur` unset, so /dʑ/ used English's short 50 ms
+  duration-table entry, then the language's rate 1.95 divided it to 25.64 ms. The shared
+  inventory already specifies 120 ms for the sound. A voiced /dz/ had no such 50 ms entry.
+- Fix: the Japanese speech front end explicitly supplies the existing inherent duration
+  for voiced-affricate onsets. No new number, IPA target, attribute or physical-model
+  change. The common planner and phrase rate are unchanged. Lyrics/singing and typed IPA
+  still use their previous paths. The glottal-opening candidate above is not adopted.
+- Result at the default rate: 61.54 ms /dʑ/; 28 sampled ms of the planned release are open
+  instead of 0. Male/female/child じゃ maximum release areas 0.00464/0/0 →
+  0.206/0.178/0.131 cm². Following-vowel voicing stays above 0.99. The prior failing test
+  is now active and covers all three bodies, じゃ/じ/じゅ/じょ and rates 0.7/1/1.5.
+- Scope: this fixes the kana path's lost fricative interval. It does not establish that
+  typed /ˈɑdʑɑ/ is perceptually good or close issue #8. Human listening is still needed.
+  ASR/TSP/CSD were not run: this is a front-end duration correction, not adoption of the
+  common-model glottal experiment. The existing English/singing fixtures guard unchanged
+  shared behaviour; production targets, source model and judges remain untouched.
+- Validation: both full golden-bless runs passed (218 Rust tests, 2 existing ignored),
+  then `bun run test` passed the same 218 Rust tests and all 69 Bun tests (884 assertions).
+  Typecheck and production build passed. All 21 golden files remain byte-identical.
+  Additional compatibility fingerprints match for English speech (3), Korean songs (2)
+  and the four existing demo songs: full plans and the first two seconds of audio.
+- Bench against the previous commit's recorded run: os=2 27.1%→25.8% of one core,
+  os=1 12.1%→11.8%. Shared rendering is unchanged; these noisy figures show no slowdown.

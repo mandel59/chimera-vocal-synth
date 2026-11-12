@@ -66,6 +66,9 @@ and the CLI) under a React UI. See the README.
   after rebuilding wasm; E2E checks っ in both the pitch roll and mouth bubbles.
 - **Common-Japanese spelling does not split じ/ぢ or ず/づ.** Select contextual onsets before
   nasal/geminate assimilation; check `cargo test -p chimera --test yotsugana`.
+- **Japanese voiced affricates must release before their vowel.** Preserve closure and vowel
+  voicing across rates; check `cargo test -p chimera --test voiced_affricates`. English duration
+  defaults shortened by the Japanese rate left the whole release almost closed.
 - **Nothing copyrighted goes in git.** `public/shows/` is gitignored; never ship CSD audio or
   anything derived from it.
 - **Voice tuning follows `docs/hill-climb/README.md`** and never edits its judges.

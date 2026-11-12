@@ -23,6 +23,7 @@
 //! word with a fall lowers the words after it in the phrase (downstep). Lyrics ignore the marks.
 
 use super::Phrase;
+use super::inventory::{self, Manner, Voicing};
 use crate::math::js_max;
 use super::{Intonation, ReleaseTiming, Segment, Syllable};
 
@@ -499,7 +500,13 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
         } else {
             let vowel = matches!(s.nucleus.ipa.as_str(), "a" | "i" | "ɯ" | "e" | "o");
             for c in &s.onset {
-                segs.push(Segment { ipa: c.ipa.clone(), stress: Some(0), ..Default::default() });
+                // Do not inherit English /dʒ/'s short Klatt span: after TEMPO it leaves
+                // Japanese /dʑ/ nearly closed throughout its planned release. Use the shared sound's
+                // inherent duration for voiced affricates; the phrase rate still applies.
+                let dur = inventory::consonants().iter()
+                    .find(|d| d.ipa == c.ipa && d.manner == Manner::Affricate && d.voicing == Voicing::Voiced)
+                    .map(|d| d.dur);
+                segs.push(Segment { ipa: c.ipa.clone(), dur, stress: Some(0), ..Default::default() });
             }
             segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(if vowel { MORA_VOWEL } else { MORA_N }), stress: Some(1), pitch: Some(*pitch), release_timing: s.nucleus.release_timing, ..Default::default() });
             for c in &s.coda {

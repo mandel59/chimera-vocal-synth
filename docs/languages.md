@@ -50,6 +50,13 @@ before nasal/geminate assimilation. Original spelling is retained for display. T
 simplified deterministic default, not a categorical claim about every speaker or a model
 of dialects that distinguish four sounds. Shared IPA inventory and typed IPA do not change.
 
+Spoken voiced-affricate onsets explicitly use the shared inventory's inherent duration
+before the Japanese phrase rate is applied. Otherwise English's 50 ms /dʒ/-style Klatt
+value shortens Japanese /dʑ/ again to 25.6 ms, leaving its planned release nearly closed.
+The existing 120 ms inventory value gives 61.5 ms at the default rate, without changing
+the shared sound, English, typed IPA or singing. The physical release and following
+vowel are covered in `tests/voiced_affricates.rs`; perceptual quality remains issue #8.
+
 `render::say` keeps its English signature for the unmodified TSP judge. CLI
 `render text` selects a language (`--lang en|ja`, or compatibility detection)
 and uses the same rendering body after any dictionary preparation. Its
