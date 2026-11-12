@@ -52,3 +52,19 @@ describe("language entry over WASM", () => {
     expect(() => lyricsToSyllables("桜", "ja")).toThrow("kana");
   });
 });
+
+
+test("common Japanese merges yotsugana spellings over WASM", () => {
+  const phrases = textToPhrases("じ。ず。ぢ。づ。", "ja");
+  expect(phrases.map((p) => p.segments.map((s) => s.ipa))).toEqual([
+    ["dʑ", "i"], ["d̪z̪", "ɯ"], ["dʑ", "i"], ["d̪z̪", "ɯ"],
+  ]);
+  expect(phrases[0].segments).toEqual(phrases[2].segments);
+  expect(phrases[1].segments).toEqual(phrases[3].segments);
+  for (const [a, b] of [["あじ", "あぢ"], ["あず", "あづ"], ["かんじ", "かんぢ"], ["かんず", "かんづ"]]) {
+    expect(textToPhrases(a, "ja")[0].segments).toEqual(textToPhrases(b, "ja")[0].segments);
+    expect(lyricsToSyllables(a, "ja").map((s) => [s.onset, s.nucleus, s.coda])).toEqual(
+      lyricsToSyllables(b, "ja").map((s) => [s.onset, s.nucleus, s.coda]),
+    );
+  }
+});

@@ -64,6 +64,8 @@ and the CLI) under a React UI. See the README.
   fitting and can close over the previous vowel. Check `cargo test -p chimera --test song_phrasing`.
 - **Japanese coda marks stay in the displayed syllable.** Check `bun test tests/words.test.ts`
   after rebuilding wasm; E2E checks っ in both the pitch roll and mouth bubbles.
+- **Common-Japanese spelling does not split じ/ぢ or ず/づ.** Select contextual onsets before
+  nasal/geminate assimilation; check `cargo test -p chimera --test yotsugana`.
 - **Nothing copyrighted goes in git.** `public/shows/` is gitignored; never ship CSD audio or
   anything derived from it.
 - **Voice tuning follows `docs/hill-climb/README.md`** and never edits its judges.

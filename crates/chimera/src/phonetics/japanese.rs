@@ -67,7 +67,7 @@ fn base(c: char) -> Option<(&'static [&'static str], &'static str)> {
         'そ' => (&["s"], "o"),
         'ざ' => (&["z"], "a"),
         'じ' | 'ぢ' => (&["dʑ"], "i"),
-        'ず' => (&["z"], "ɯ"),
+        'ず' | 'づ' => (&["z"], "ɯ"),
         'ぜ' => (&["z"], "e"),
         'ぞ' => (&["z"], "o"),
         'た' => (&["t"], "a"),
@@ -76,7 +76,6 @@ fn base(c: char) -> Option<(&'static [&'static str], &'static str)> {
         'て' => (&["t"], "e"),
         'と' => (&["t"], "o"),
         'だ' => (&["d"], "a"),
-        'づ' => (&["dz"], "ɯ"),
         'で' => (&["d"], "e"),
         'ど' => (&["d"], "o"),
         'な' => (&["n"], "a"),
@@ -188,6 +187,27 @@ fn morae(word: &str) -> Vec<Mora> {
             }
         }
     }
+    // Common Japanese merges じ/ぢ and ず/づ. Select the same contextual realization
+    // for either spelling before nasal/geminate assimilation reads the next consonant.
+    // This is a deterministic default, not a claim that position alone predicts speakers.
+    let mut after_vowel = false;
+    for m in &mut out {
+        match m {
+            Mora::Sung(onset, _, _) => {
+                if let Some(c) = onset.first_mut() {
+                    *c = match (*c, after_vowel) {
+                        ("z", false) => "dz",
+                        ("dʑ", true) => "ʑ",
+                        (c, _) => c,
+                    };
+                }
+                after_vowel = true;
+            }
+            Mora::Hold(_) => {} // continue the preceding vowel or syllabic nasal
+            Mora::N(_) | Mora::AttachedN | Mora::Geminate(_) => after_vowel = false,
+        }
+    }
+
     out
 }
 

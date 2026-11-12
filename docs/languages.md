@@ -42,6 +42,14 @@ assimilation before consonants is retained. Singing and an explicit `ー`
 continuation keep the open nasal for sustained notes; the quietness of a
 held `ɴ` does not determine the articulation of ordinary speech.
 
+Common-Japanese kana merge じ/ぢ and ず/づ: either spelling takes the same contextual
+onset rule. This front end defaults to affricates at a word/run start and after a nasal or
+geminate, and fricatives after a vowel (including its long mark): dʑ/ʑ for じ/ぢ and
+laminal denti-alveolar d̪z̪/z̪ for ず/づ and the other z-row vowels. The choice is made
+before nasal/geminate assimilation. Original spelling is retained for display. This is a
+simplified deterministic default, not a categorical claim about every speaker or a model
+of dialects that distinguish four sounds. Shared IPA inventory and typed IPA do not change.
+
 `render::say` keeps its English signature for the unmodified TSP judge. CLI
 `render text` selects a language (`--lang en|ja`, or compatibility detection)
 and uses the same rendering body after any dictionary preparation. Its
