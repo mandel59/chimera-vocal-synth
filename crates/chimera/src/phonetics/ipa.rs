@@ -7,8 +7,10 @@ use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
 const VOWEL_CHARS: &str = "iyɨʉɯuɪʏʊeøɘɵɤoəɛœɜɞʌɔæɐaɶɑɒɝɚ";
-const MULTI: [&str; 14] = ["tʃ", "dʒ", "ts", "dz", "pf", "tɕ", "dʑ", "tʂ", "dʐ", "aɪ", "aʊ", "ɔɪ", "eɪ", "oʊ"];
-const ALIASES: [(&str, &str); 9] = [("t͡ʃ", "tʃ"), ("d͡ʒ", "dʒ"), ("t͡s", "ts"), ("d͡z", "dz"), ("ɡ", "g"), ("ʧ", "tʃ"), ("ʤ", "dʒ"), ("r̥", "r"), ("ɐ̯", "ɐ")];
+// a symbol with a diacritic is listed here, or the diacritic is dropped below. The last match
+// wins, so a longer symbol comes after the shorter one it starts with.
+const MULTI: [&str; 22] = ["tʃ", "dʒ", "ts", "dz", "tɕ", "dʑ", "tʂ", "dʐ", "pf", "aɪ", "aʊ", "ɔɪ", "eɪ", "oʊ", "t̪", "d̪", "n̪", "s̪", "z̪", "t̪s̪", "d̪z̪", "ɰ̃"];
+const ALIASES: [(&str, &str); 13] = [("t͡ʃ", "tʃ"), ("d͡ʒ", "dʒ"), ("t͡s", "ts"), ("d͡z", "dz"), ("t̪͡s̪", "t̪s̪"), ("d̪͡z̪", "d̪z̪"), ("t͡ɕ", "tɕ"), ("d͡ʑ", "dʑ"), ("ɡ", "g"), ("ʧ", "tʃ"), ("ʤ", "dʒ"), ("r̥", "r"), ("ɐ̯", "ɐ")];
 
 /// combining tilde and combining diaeresis below: the vowel before them is nasalized, breathy
 const NASALIZED: char = '\u{303}';
