@@ -50,6 +50,34 @@ and the CLI) under a React UI. See the README.
 - **The wasm loads before the UI.** A module that calls the engine at import must not be reachable
   from `src/main.tsx`'s static imports. Check: `bun tools/e2e.ts` against `bun run preview`.
 - **DOM content flows in `.screen-body`, never absolutely positioned.** Check: `bun run lint:layout`.
+- **IPA cells may have more than two symbols.** They must wrap inside the chart's 600 px minimum
+  width. Check: `bun run lint:layout` and the cell-bound checks in `bun tools/e2e.ts`.
+- **The consonant chart must cover the engine's whole inventory**, including `Other` symbols.
+  Check: the catalog comparison in `bun tools/e2e.ts`.
+- **Languages share one definition per IPA sound.** After integrating inventories, regenerate the
+  consonant table; check `cargo test -p chimera --test sounds` and
+  `cargo test -p chimera-cli --test cli calibrate_consonants_reproduces_the_committed_table`.
+- **Lyric context needs both the preceding word and the preceding syllable.** A Russian
+  preposition can produce no syllables; a Japanese long mark needs the last sung vowel. Check
+  `cargo test -p chimera --test language_context` and `bun test tests/language.test.ts` after
+  rebuilding wasm, including Russian lyrics with Japanese selection.
+- **Temporary demo and score lyrics must not replace saved player lyrics.** Mood tunes use the
+  player's words; every source shares cancellation and video hooks. Check
+  `bun test tests/singing-live.test.ts` and `bun tools/e2e.ts` for both paths.
+- **A sustained sung nasal does not decide a spoken nasal's closure.** Keep Japanese speech and
+  singing distinct; check `cargo test -p chimera --test japanese` (spoken phrase-final closure
+  and the held final nasal's loudness).
+- **A planned sung vowel must actually voice.** Check short Japanese stop–vowel–fricative notes
+  with `cargo test -p chimera --test sung_vowel`; segment length alone missed a silent と.
+- **Demo breath marks follow rests, not grammatical boundaries.** A false break bypasses
+  fitting and can close over the previous vowel. Check `cargo test -p chimera --test song_phrasing`.
+- **Japanese coda marks stay in the displayed syllable.** Check `bun test tests/words.test.ts`
+  after rebuilding wasm; E2E checks っ in both the pitch roll and mouth bubbles.
+- **Common-Japanese spelling does not split じ/ぢ or ず/づ.** Select contextual onsets before
+  nasal/geminate assimilation; check `cargo test -p chimera --test yotsugana`.
+- **Japanese voiced affricates must release before their vowel.** Preserve closure and vowel
+  voicing across rates; check `cargo test -p chimera --test voiced_affricates`. English duration
+  defaults shortened by the Japanese rate left the whole release almost closed.
 - **Nothing copyrighted goes in git.** `public/shows/` is gitignored; never ship CSD audio or
   anything derived from it.
 - **Voice tuning follows `docs/hill-climb/README.md`** and never edits its judges.

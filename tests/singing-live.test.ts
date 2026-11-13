@@ -42,7 +42,7 @@ const engineStub = new Proxy(
   { get: (t, k) => (k in t ? t[k as string] : () => {}), set: (t, k, v) => ((t[k as string] = v), true) },
 );
 mock.module("../src/audio/AudioEngine.ts", () => ({ engine: engineStub }));
-const { useSing, singNoteOn, singNoteOff, playTune, stopSinging, tickSinging } = await import("../src/ui/singing.ts");
+const { useSing, singNoteOn, singNoteOff, playTune, playDemo, playScore, openScore, stopSinging, tickSinging } = await import("../src/ui/singing.ts");
 const gesturesOf = () => voice.score();
 /** breath the score is giving now (strength-weighted activation of breath gestures) */
 const breathNow = () => {
@@ -228,6 +228,143 @@ describe("Sing mode, live keys", () => {
     expect(sing().at).toBe(-1);
     stopSinging();
     sing().setLyrics("Hello there");
+  });
+
+  test("a loaded score uses the same cancellation and recording hooks as a mood tune", async () => {
+    voice = new WasmVoice(FS);
+    const sing = useSing.getState;
+    sing().setLyrics("my own words");
+    const file = new File([`<score-partwise><work><work-title>Dreamy</work-title></work><part id="P1"><measure>
+      <attributes><divisions>1</divisions></attributes><note><pitch><step>A</step><octave>3</octave></pitch>
+      <duration>2</duration><lyric><text>ah</text></lyric></note></measure></part></score-partwise>`], "voice.musicxml");
+    await openScore(file, MALE);
+    expect(sing().tune).toBe("score");
+    expect(sing().playing).toBe("score"); // the title may equal a mood tune's label
+    stopSinging();
+    const log: string[] = [];
+    const hooks = { onStart: () => log.push("start"), onEnd: () => log.push("end"), onStop: () => log.push("stop") };
+    let go!: () => void;
+    const pending = playTune("score", MALE, () => new Promise<void>((r) => (go = r)), hooks);
+    stopSinging();
+    go();
+    expect(await pending).toBe(false);
+    expect(log).toEqual([]);
+    expect(await playScore(MALE, undefined, hooks)).toBe(true);
+    stopSinging();
+    expect(log).toEqual(["start", "stop"]);
+    expect(sing().lyrics).toBe("my own words");
+    await playScore(MALE, undefined, hooks);
+    planned({ type: "planned", id: 1, t0: voice.clock - 1000, end: 0 });
+    tickSinging();
+    tickSinging();
+    expect(log).toEqual(["start", "stop", "start", "end"]);
+    expect(sing().lyrics).toBe("my own words");
+  });
+
+  test("temporary demo lyrics never replace the saved player lyrics or language", async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    const saved = new Map<string, string>();
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: {
+      getItem: (key: string) => saved.get(key) ?? null,
+      setItem: (key: string, value: string) => saved.set(key, value),
+    } });
+    try {
+      const sing = useSing.getState;
+      sing().setLanguage("ja");
+      sing().setLyrics("さくら さくら");
+      sing().setTune("joyful");
+      await playDemo("あんたがたどこさ", MALE);
+      expect(sing().lyrics).not.toBe("さくら さくら");
+      expect(JSON.parse(saved.get("chimera-sing")!)).toMatchObject({ lyrics: "さくら さくら", language: "ja", tune: "joyful" });
+      stopSinging();
+      expect(sing().lyrics).toBe("さくら さくら");
+      sing().setLanguage(undefined);
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis, "localStorage", descriptor);
+      else Reflect.deleteProperty(globalThis, "localStorage");
+    }
+  });
+
+  test("invalid Japanese lyrics report the error rather than singing a fallback tune", async () => {
+    const sing = useSing.getState;
+    sing().setLanguage("ja");
+    sing().setLyrics("𛅧");
+    const started: boolean[] = [];
+    expect(await playTune("dreamy", MALE, undefined, { onStart: () => started.push(true) })).toBe(false);
+    expect(started).toEqual([]);
+    expect(sing().scoreError).toBeTruthy();
+    expect(sing().playing).toBeNull();
+    sing().setLyrics("Hello there");
+    sing().setLanguage(undefined);
+  });
+
+  test("a tune bounds the cursor after re-reading lyrics with the dictionary", async () => {
+    useSing.getState().setLyrics("hi");
+    // The old cursor can outlive the dictionary's change to the syllable count.
+    useSing.setState({ cursor: 5 });
+    await playTune("dreamy", MALE);
+    expect(useSing.getState().cursor).toBe(0);
+    stopSinging();
+  });
+
+  test("a demo shows the song's words while it plays, then gives the player's own back", async () => {
+    voice = new WasmVoice(FS);
+    const sing = useSing.getState;
+    sing().setLyrics("my own words to sing");
+    sing().setCursor(2);
+    // stopped (a song chip pressed again, the mode or body changed)
+    await playDemo("Made of air", MALE, () => Promise.resolve());
+    expect(sing().playing).toBe("demo:Made of air");
+    expect(sing().lyrics).not.toBe("my own words to sing");
+    stopSinging();
+    expect(sing().lyrics).toBe("my own words to sing");
+    expect(sing().syllables.map((s) => s.text)).toEqual(["my", "own", "words", "to", "sing"]);
+    expect(sing().cursor).toBe(2);
+    // played to the end
+    await playDemo("Made of air", MALE, () => Promise.resolve());
+    planned({ type: "planned", id: 1, t0: voice.clock - 1000, end: 0 });
+    tickSinging();
+    expect(sing().playing).toBeNull();
+    expect(sing().lyrics).toBe("my own words to sing");
+    expect(sing().cursor).toBe(2);
+    // a second song started while the first plays gives back the player's words, not the first song's
+    await playDemo("Made of air", MALE, () => Promise.resolve());
+    await playDemo("Made of air", MALE, () => Promise.resolve());
+    stopSinging();
+    expect(sing().lyrics).toBe("my own words to sing");
+    // words typed during a demo are the player's from then on
+    await playDemo("Made of air", MALE, () => Promise.resolve());
+    sing().setLyrics("typed during the song");
+    expect(sing().playing).toBeNull();
+    expect(sing().lyrics).toBe("typed during the song");
+  });
+
+  test("stopping while a MusicXML file loads cancels its playback", async () => {
+    let finish!: (data: ArrayBuffer) => void;
+    let started = false;
+    const file = { name: "slow.musicxml", arrayBuffer: () => new Promise<ArrayBuffer>((r) => (finish = r)) } as File;
+    const waiting = openScore(file, MALE, async () => { started = true; });
+    stopSinging();
+    finish(new TextEncoder().encode(`<score-partwise><part id="P1"><measure>
+      <attributes><divisions>1</divisions></attributes><note><pitch><step>A</step><octave>3</octave></pitch>
+      <duration>1</duration><lyric><text>ah</text></lyric></note></measure></part></score-partwise>`).buffer);
+    await waiting;
+    expect(started).toBe(false);
+    expect(useSing.getState().playing).toBeNull();
+  });
+
+  test("stopping a demo restores lyrics with the selected language", async () => {
+    voice = new WasmVoice(FS);
+    const sing = useSing.getState;
+    sing().setLanguage("en");
+    sing().setLyrics("hi さくら");
+    const original = sing().syllables;
+    await playDemo("Made of air", MALE, () => Promise.resolve());
+    stopSinging();
+    expect(sing().lyrics).toBe("hi さくら");
+    expect(sing().syllables).toEqual(original);
+    expect(sing().language).toBe("en");
+    sing().setLanguage(undefined);
   });
 
   test("a quick next note drops the last one's breath-out; leaving Sing cancels a pending ending", () => {

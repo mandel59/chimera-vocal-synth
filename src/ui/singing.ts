@@ -10,13 +10,15 @@
 import { create } from "zustand";
 import { engine } from "../audio/AudioEngine.ts";
 import { g2p } from "./speech.ts";
-import { lyricsToSyllables, type Syllable } from "../wasm/engine.ts";
+import { DEMO_SONGS, lyricsToSyllables, type Syllable } from "../wasm/engine.ts";
 import { planSong, planNoteOn, planNoteOff, planMelisma } from "../wasm/engine.ts";
 import { EXHALE_LABEL } from "../wasm/engine.ts";
-import type { Gesture } from "../wasm/types.ts";
+import type { Gesture, Language } from "../wasm/types.ts";
 import { nearestBody, type BodyMix } from "./body.ts";
 import { TUNES } from "../song/tunes.ts";
 import { fitSong, la } from "../song/fit.ts";
+import { writtenSyllable } from "../show/words.ts";
+import { octaveShift, readScoreFile, singScore, type Score, type SungScoreNote } from "../show/musicxml.ts";
 
 /** A note on the piano roll, on the voice clock (s); t1 is null while it is held. */
 export interface RollNote {
@@ -36,6 +38,10 @@ export const DEFAULT_LYRICS = "Hello there, I am a voice made of air.";
 const AH: Syllable = { text: "ah", onset: [], nucleus: { ipa: "ɑ", stress: 1 }, coda: [], wordEnd: true, phraseEnd: false };
 
 interface SingState {
+  language?: Language;
+  setLanguage: (language?: Language) => void;
+  score: Score | null;
+  scoreError: string | null;
   lyrics: string;
   syllables: Syllable[];
   /** the syllable the next key sings */
@@ -60,17 +66,20 @@ interface SingState {
   setKey: (semitones: number) => void;
 }
 
+let ownWords: { lyrics: string; cursor: number } | null = null;
+
 const KEPT = "chimera-sing";
 
 /** the last session's words, tune, tempo and key (anything missing or odd: the defaults) */
-function kept(): { lyrics: string; tune: string; tempo: number; key: number } {
+function kept(): { lyrics: string; tune: string; tempo: number; key: number; language?: Language } {
   const d = { lyrics: DEFAULT_LYRICS, tune: TUNES[0].id, tempo: 1, key: 0 };
   try {
     const k = JSON.parse(localStorage.getItem(KEPT) ?? "null") as Record<string, unknown> | null;
     if (!k) return d;
     return {
       lyrics: typeof k.lyrics === "string" ? k.lyrics : d.lyrics,
-      tune: TUNES.some((t) => t.id === k.tune) ? (k.tune as string) : d.tune,
+      tune: TUNES.some((t) => t.id === k.tune) || DEMO_SONGS.some((s) => `demo:${s.name}` === k.tune) ? (k.tune as string) : d.tune,
+      language: k.language === "en" || k.language === "ja" ? k.language : undefined,
       tempo: typeof k.tempo === "number" && k.tempo >= 0.5 && k.tempo <= 1.5 ? k.tempo : d.tempo,
       key: typeof k.key === "number" && Math.abs(k.key) <= 12 ? Math.round(k.key) : d.key,
     };
@@ -83,7 +92,9 @@ const atLoad = kept();
 
 export const useSing = create<SingState>((set, get) => ({
   lyrics: atLoad.lyrics,
-  syllables: lyricsToSyllables(atLoad.lyrics),
+  language: atLoad.language,
+  score: null,
+  ...readLyrics(atLoad.lyrics, atLoad.language),
   cursor: 0,
   vibrato: 35,
   tune: atLoad.tune,
@@ -93,7 +104,11 @@ export const useSing = create<SingState>((set, get) => ({
   at: -1,
   setLyrics: (text) => {
     stopDemo();
-    set({ lyrics: text, syllables: lyricsToSyllables(text), cursor: 0 });
+    set({ lyrics: text, ...readLyrics(text, get().language), cursor: 0 });
+  },
+  setLanguage: (language) => {
+    stopDemo();
+    set({ language, ...readLyrics(get().lyrics, language), cursor: 0 });
   },
   setCursor: (i) => set({ cursor: Math.max(0, Math.min(i, Math.max(0, get().syllables.length - 1))) }),
   setVibrato: (cents) => set({ vibrato: cents }),
@@ -103,13 +118,18 @@ export const useSing = create<SingState>((set, get) => ({
 }));
 
 useSing.subscribe((s, p) => {
-  if (s.lyrics === p.lyrics && s.tune === p.tune && s.tempo === p.tempo && s.key === p.key) return;
+  if (s.lyrics === p.lyrics && s.tune === p.tune && s.tempo === p.tempo && s.key === p.key && s.language === p.language) return;
   try {
-    localStorage.setItem(KEPT, JSON.stringify({ lyrics: s.lyrics, tune: s.tune, tempo: s.tempo, key: s.key }));
+    localStorage.setItem(KEPT, JSON.stringify({ lyrics: ownWords?.lyrics ?? s.lyrics, tune: s.tune, tempo: s.tempo, key: s.key, language: s.language }));
   } catch {
     // not kept: the session still works
   }
 });
+
+function readLyrics(text: string, language?: Language): Pick<SingState, "syllables" | "scoreError"> {
+  try { return { syllables: lyricsToSyllables(text, language), scoreError: null }; }
+  catch (e) { return { syllables: [], scoreError: e instanceof Error ? e.message : String(e) }; }
+}
 
 /** Load the pronouncing dictionary, then re-read the lyrics with it (the cursor stays). */
 export function ensureDictionary(): void {
@@ -118,8 +138,9 @@ export function ensureDictionary(): void {
     .load()
     .then(() => {
       const s = useSing.getState();
-      const syllables = lyricsToSyllables(s.lyrics);
-      useSing.setState({ syllables, cursor: Math.min(s.cursor, Math.max(0, syllables.length - 1)) });
+      const parsed = readLyrics(s.lyrics, s.language);
+      const { syllables } = parsed;
+      useSing.setState({ ...parsed, cursor: Math.min(s.cursor, Math.max(0, syllables.length - 1)) });
     })
     .catch(() => {
       // no dictionary: the letter-to-sound rules keep working
@@ -139,7 +160,7 @@ interface Sounding {
 let sounding: Sounding | null = null;
 
 /** How a syllable is written at the mouth: a hyphen when its word goes on. */
-const written = (s: Syllable) => s.text + (s.wordEnd ? "" : "-");
+const written = (s: Syllable) => writtenSyllable(s.text, s.wordEnd);
 
 /**
  * The syllable being sung now, for the words at the mouth: the demo's note under the clock, or
@@ -294,7 +315,11 @@ let demoToken = 0;
 
 function endDemo(): void {
   demoRun = null;
-  useSing.setState({ playing: null, at: -1 });
+  const w = ownWords;
+  ownWords = null;
+  if (!w) return void useSing.setState({ playing: null, at: -1 });
+  const parsed = readLyrics(w.lyrics, useSing.getState().language);
+  useSing.setState({ playing: null, at: -1, lyrics: w.lyrics, ...parsed, cursor: Math.min(w.cursor, Math.max(0, parsed.syllables.length - 1)) });
 }
 
 engine.onPlanned((m) => {
@@ -310,6 +335,8 @@ engine.onPlanned((m) => {
  * singing. `hooks` follow the run: onStart only once nothing can cancel it before it's sent.
  */
 export async function playTune(id: string, body: BodyMix, ready?: () => Promise<void>, hooks: TuneHooks = {}): Promise<boolean> {
+  if (id === "score") return playScore(body, ready, hooks);
+  if (id.startsWith("demo:")) return playDemo(id.slice(5), body, ready, hooks);
   const tune = TUNES.find((t) => t.id === id);
   if (!tune) return false;
   stopSinging();
@@ -323,27 +350,134 @@ export async function playTune(id: string, body: BodyMix, ready?: () => Promise<
   if (token !== demoToken) return false;
   const st = useSing.getState();
   // read again: the dictionary may have arrived since the words were typed
-  const own = lyricsToSyllables(st.lyrics);
+  const parsed = readLyrics(st.lyrics, st.language);
+  if (parsed.scoreError) { useSing.setState(parsed); return false; }
+  const own = parsed.syllables;
   const words = own.length ? own : lyricsToSyllables(la(tune));
   const { notes, from } = fitSong(tune, words, tune.octave[nearestBody(body)] * 12 + st.key);
   if (!notes.length) return false;
   const bpm = tune.bpm * st.tempo;
-  const t0 = 0.35;
-  const plan = planSong(notes, { body, bpm, t0, vibrato: st.vibrato });
-  hooks.onStart?.();
-  const beat = 60 / bpm;
-  let t = t0;
-  const times = notes.map((n): [number, number] => {
-    const a = t;
-    t += n.beats * beat;
-    return [a, t];
+  return sendSong(tune.id, bpm, notes, body, hooks, own.length ? from : from.map(() => -1));
+}
+
+/** Original demos keep their own words; mood tunes continue to use the player's words. */
+export async function playDemo(name: string, body: BodyMix, ready?: () => Promise<void>, hooks: TuneHooks = {}): Promise<boolean> {
+  const song = DEMO_SONGS.find((s) => s.name === name);
+  if (!song) return false;
+  return playStored(`demo:${name}`, song.bpm, body, ready, hooks, () => {
+    const syl = lyricsToSyllables(song.lyrics);
+    const shift = song.octave[nearestBody(body)] * 12 + useSing.getState().key;
+    return { lyrics: song.lyrics, notes: song.notes.map((n, i) => ({ midi: n[0] + shift, beats: n[1], syl: syl[i % syl.length] })) };
   });
-  const planId = engine.schedule({ gestures: plan.gestures, segments: plan.segments, end: plan.end });
+}
+
+/** Read a local MusicXML/XML/MXL file and sing it unless stopped while it loads. */
+export async function openScore(file: File, body: BodyMix, ready?: () => Promise<void>): Promise<void> {
+  stopSinging();
+  const token = demoToken;
+  try {
+    const score = await readScoreFile(new Uint8Array(await file.arrayBuffer()), file.name);
+    if (token !== demoToken) return;
+    useSing.setState({ score, scoreError: null, tune: "score" });
+  } catch (e) {
+    if (token === demoToken) useSing.setState({ scoreError: `${file.name}: ${e instanceof Error ? e.message : String(e)}` });
+    return;
+  }
+  await playScore(body, ready);
+}
+
+/** The loaded score's lyrics as text: a space after each word, but kana run on (a space would
+ * split a Japanese word, and が行 and ん follow the word), and a comma at each rest (a breath, if
+ * the text is edited and sung from the keys). */
+function scoreLyrics(score: Score, language?: Language): string {
+  const kana = /[ぁ-ヿ𛅧]/u;
+  const japanese = language ? language === "ja" : score.notes.some((n) => n.lyric && kana.test(n.lyric.text));
+  return score.notes
+    .map((n) => {
+      if (n.midi === null) return japanese ? "、" : ", ";
+      if (!n.lyric) return "";
+      const runOn = n.lyric.syllabic === "begin" || n.lyric.syllabic === "middle" || kana.test(n.lyric.text);
+      return n.lyric.text + (runOn ? "" : " ");
+    })
+    .join("")
+    .replace(/ +,/g, ",")
+    .trim();
+}
+
+/** Sing a loaded score through the same run lifecycle as mood tunes and video recording. */
+export async function playScore(body: BodyMix, ready?: () => Promise<void>, hooks: TuneHooks = {}): Promise<boolean> {
+  const score = useSing.getState().score;
+  if (!score) return false;
+  return playStored("score", score.bpm, body, ready, hooks, () => {
+    const { lyrics: typed, language, key } = useSing.getState();
+    const syllabify = (text: string) => lyricsToSyllables(text, language);
+    const hasLyrics = score.notes.some((n) => n.lyric);
+    const notes = singScore(score, syllabify, hasLyrics ? [] : syllabify(typed), language);
+    const shift = octaveShift(notes, nearestBody(body) === "male" ? 0 : 1) + key;
+    return { lyrics: hasLyrics ? scoreLyrics(score, language) : typed, notes: notes.map((n) => n.midi === null ? n : { ...n, midi: n.midi + shift }) };
+  });
+}
+
+async function playStored(id: string, bpm: number, body: BodyMix, ready: (() => Promise<void>) | undefined, hooks: TuneHooks,
+  make: () => { lyrics: string; notes: SungScoreNote[] }): Promise<boolean> {
+  stopSinging();
+  const token = demoToken;
+  await ready?.();
+  try { await g2p.load(); } catch { /* letter-to-sound rules */ }
+  if (token !== demoToken) return false;
+  try {
+    const { notes, lyrics } = make();
+    return sendSong(id, bpm * useSing.getState().tempo, notes, body, hooks, notes.filter((n) => n.syl).map((_, i) => i), lyrics);
+  } catch (e) {
+    useSing.setState({ scoreError: e instanceof Error ? e.message : String(e) });
+    return false;
+  }
+}
+
+/** Plan once per stretch between rests; every source shares scheduling, cursor and video hooks. */
+function sendSong(id: string, bpm: number, all: SungScoreNote[], body: BodyMix, hooks: TuneHooks, from: number[], lyrics?: string): boolean {
+  if (!all.some((n) => n.syl)) return false;
+  const st = useSing.getState();
+  const t0 = 0.35;
+  const beat = 60 / bpm;
+  const gestures: Gesture[] = [];
+  const segments: ReturnType<typeof planSong>["segments"] = [];
+  let end = t0;
+  let t = t0;
+  let phraseT0 = t0;
+  let phrase: { midi: number; beats: number; syl: Syllable }[] = [];
+  const notes: { midi: number; syl: Syllable }[] = [];
+  const times: [number, number][] = [];
+  const flush = () => {
+    if (!phrase.length) return;
+    const plan = planSong(phrase, { body, bpm, t0: phraseT0, vibrato: st.vibrato });
+    gestures.push(...plan.gestures);
+    segments.push(...plan.segments);
+    end = Math.max(end, plan.end);
+    phrase = [];
+  };
+  for (const n of all) {
+    if (n.midi === null || !n.syl) {
+      flush();
+      t += n.beats * beat;
+      continue;
+    }
+    if (!phrase.length) phraseT0 = t;
+    phrase.push({ midi: n.midi, beats: n.beats, syl: n.syl });
+    notes.push({ midi: n.midi, syl: n.syl });
+    times.push([t, t + n.beats * beat]);
+    t += n.beats * beat;
+  }
+  flush();
+  hooks.onStart?.();
+  const planId = engine.schedule({ gestures, segments, end });
   const parent: number[] = [];
   notes.forEach((n, i) => parent.push(n.syl.melisma && i > 0 ? parent[i - 1] : i));
   const shown = parent.map((p) => written(notes[p].syl));
-  demoRun = { id: planId, times, midi: notes.map((n) => n.midi), text: notes.map((n) => n.syl.text), shown, parent, from: own.length ? from : from.map(() => -1), end: plan.end, offset: null, hooks };
-  useSing.setState({ syllables: own, cursor: Math.min(st.cursor, Math.max(0, own.length - 1)), playing: tune.id, at: -1 });
+  demoRun = { id: planId, times, midi: notes.map((n) => n.midi), text: notes.map((n) => n.syl.text), shown, parent, from, end, offset: null, hooks };
+  if (lyrics !== undefined) ownWords = { lyrics: st.lyrics, cursor: st.cursor };
+  const display = lyrics === undefined ? readLyrics(st.lyrics, st.language) : { lyrics, syllables: notes.map((n) => n.syl), scoreError: null };
+  useSing.setState({ ...display, cursor: lyrics === undefined ? Math.min(st.cursor, Math.max(0, display.syllables.length - 1)) : 0, playing: id, at: -1 });
   return true;
 }
 
@@ -394,4 +528,4 @@ export function stopSinging(): void {
   keys = [];
 }
 
-export { TUNES };
+export { TUNES, DEMO_SONGS };

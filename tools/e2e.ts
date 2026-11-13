@@ -4,7 +4,11 @@
  * Usage: bun tools/e2e.ts [url] [outdir]
  */
 import { chromium, type Page } from "playwright-core";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
+
+import { call, initChimera } from "../src/wasm/chimera.ts";
+await initChimera(readFileSync(new URL("../src/wasm/chimera.wasm", import.meta.url)));
+const { consonantSymbols } = call<{ consonantSymbols: string[] }>("catalog");
 
 const url = process.argv[2] ?? "http://127.0.0.1:5318/";
 const outDir = process.argv[3] ?? "out/e2e";
@@ -87,6 +91,22 @@ async function run(viewport: { width: number; height: number }, tag: string) {
   // speak mode
   await page.getByRole("radio", { name: "Speak" }).click();
   await page.waitForTimeout(200);
+  await page.getByLabel("Language", { exact: true }).selectOption("en");
+  // Compare the rendered buttons with the engine, including symbols outside the main grid.
+  const chartSymbols = (await page.locator(".ipa-chart button.ipa").allTextContents()).map((s) => s.trim());
+  if (JSON.stringify([...chartSymbols].sort()) !== JSON.stringify([...consonantSymbols].sort())) {
+    const missing = consonantSymbols.filter((s) => !chartSymbols.includes(s));
+    const extra = chartSymbols.filter((s) => !consonantSymbols.includes(s));
+    errors.push(`[${tag}] IPA chart differs from engine: missing ${missing.join(", ")}; extra/duplicate count ${extra.length}/${chartSymbols.length - new Set(chartSymbols).size}`);
+  }
+  logs.push(`[${tag}] consonant chart: ${chartSymbols.length}/${consonantSymbols.length} symbols`);
+  // The Dental fricative cell has four symbols; at the 600 px minimum table width they must wrap.
+  const escapedIpa = await page.locator(".ipa-chart button.ipa").evaluateAll((buttons) => buttons.filter((button) => {
+    const cell = button.closest("td")!.getBoundingClientRect(), r = button.getBoundingClientRect();
+    return r.left < cell.left - 1 || r.right > cell.right + 1;
+  }).map((button) => button.textContent));
+  if (escapedIpa.length) errors.push(`[${tag}] IPA symbols spill outside their cells: ${escapedIpa.join(", ")}`);
+
   await page.getByRole("button", { name: /^Speak$/ }).click();
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${outDir}/${tag}-3-speak.png`, fullPage: true });
@@ -186,6 +206,87 @@ async function run(viewport: { width: number; height: number }, tag: string) {
   logs.push(`[${tag}] sing a tune: rms ${demoRms.toFixed(4)} on "${demoNow}", after stop ${demoStopped.toFixed(4)}`);
   if (!(demoRms > 0.01) || !demoNow) errors.push(`[${tag}] the tune is not singing the lyrics (rms ${demoRms}, syllable ${demoNow})`);
   if (!(demoStopped < 1e-3)) errors.push(`[${tag}] the tune still sounding after stop: ${demoStopped}`);
+  // Attached N is one note, including its supplementary Unicode input character; ordinary N
+  // stays separate. The displayed syllables and cursor use syllable indices, not UTF-16 offsets.
+  const lyricsBox = page.getByRole("textbox", { name: "Lyrics to sing" });
+  const savedLyrics = await lyricsBox.inputValue();
+  await page.getByLabel("Language", { exact: true }).selectOption("ja");
+  await lyricsBox.fill("あ𛅧た せん");
+  const attachedText = await page.locator(".syllables .syl").allTextContents();
+  if (attachedText.join("|") !== "あん|た|せ|ん") errors.push(`[${tag}] attached nasal display/cursor: ${attachedText}`);
+  await page.locator(".syllables .syl").nth(1).click();
+  if (await nextSyl() !== "た") errors.push(`[${tag}] attached nasal shifted the syllable cursor`);
+  // Pitch-roll labels and the mouth bubbles must retain the written geminate coda.
+  await page.evaluate(() => {
+    const w = window as typeof window & { __sokuonRender?: { pitch: string[]; bubble: string[]; restore: () => void } };
+    const original = CanvasRenderingContext2D.prototype.fillText;
+    const capture = { pitch: [] as string[], bubble: [] as string[], restore: () => { CanvasRenderingContext2D.prototype.fillText = original; } };
+    w.__sokuonRender = capture;
+    CanvasRenderingContext2D.prototype.fillText = function (...args: Parameters<typeof original>) {
+      const text = args[0];
+      if (text === "おっ" || text === "くっ") {
+        const target = this.canvas.matches(".roll-canvas") ? capture.pitch : this.canvas.closest(".anatomy") ? capture.bubble : null;
+        if (target && !target.includes(text)) target.push(text);
+      }
+      return original.apply(this, args);
+    };
+  });
+  for (const text of ["おってさ", "くってさ"]) {
+    await lyricsBox.fill(text);
+    await page.locator(".syllables .syl").first().click();
+    await page.keyboard.down("d");
+    await page.waitForTimeout(400);
+    await page.keyboard.up("d");
+    await page.waitForTimeout(150);
+  }
+  const sokuonRender = await page.evaluate(() => {
+    const w = window as typeof window & { __sokuonRender?: { pitch: string[]; bubble: string[]; restore: () => void } };
+    const c = w.__sokuonRender!;
+    c.restore();
+    delete w.__sokuonRender;
+    return { pitch: c.pitch, bubble: c.bubble };
+  });
+  logs.push(`[${tag}] sing geminate labels: ${JSON.stringify(sokuonRender)}`);
+  for (const text of ["おっ", "くっ"]) {
+    if (!sokuonRender.pitch.includes(text) || !sokuonRender.bubble.includes(text)) errors.push(`[${tag}] geminate missing from pitch roll or mouth bubble: ${text}`);
+  }
+  await lyricsBox.fill("𛅧");
+  if (!(await page.locator(".score-error").count())) errors.push(`[${tag}] unattached nasal did not report an error`);
+  await lyricsBox.fill(savedLyrics);
+  await page.getByRole("combobox", { name: "Tune" }).selectOption("demo:あんたがたどこさ");
+  await page.getByRole("button", { name: /^Sing$/ }).click();
+  await page.waitForTimeout(250);
+  if (await page.locator(".syllables .syl").count() !== 81 || await page.locator(".syllables .syl").first().textContent() !== "あん") errors.push(`[${tag}] Antagata syllables do not match its 81 notes`);
+  await page.waitForTimeout(900);
+  if (!(await rms() > 0.001)) errors.push(`[${tag}] Antagata made no sound`);
+  await page.getByRole("button", { name: /^Stop$/ }).click();
+  await page.getByLabel("Language", { exact: true }).selectOption("en");
+  await page.getByRole("combobox", { name: "Tune" }).selectOption("dreamy");
+  // Imported scores join the upstream Song menu and share its Sing/Stop button.
+  const ownLyrics = await page.getByRole("textbox", { name: "Lyrics to sing" }).inputValue();
+  await page.getByLabel("Language", { exact: true }).selectOption("ja");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "rebase.musicxml",
+    mimeType: "application/vnd.recordare.musicxml+xml",
+    buffer: Buffer.from(`<score-partwise><work><work-title>Rebase score</work-title></work>
+      <part-list><score-part id="P1"><part-name>Voice</part-name></score-part></part-list>
+      <part id="P1"><measure number="1"><attributes><divisions>1</divisions></attributes>
+      <direction><sound tempo="60"/></direction><note><pitch><step>A</step><octave>3</octave></pitch>
+      <duration>8</duration><lyric><text>あ</text></lyric></note></measure></part></score-partwise>`),
+  });
+  await page.getByRole("button", { name: /^Stop$/ }).waitFor();
+  await page.waitForTimeout(1000);
+  const scoreRms = await rms();
+  if (!(scoreRms > 0.01)) errors.push(`[${tag}] MusicXML score made no sound (${scoreRms})`);
+  await page.getByRole("button", { name: /^Stop$/ }).click();
+  await page.getByRole("combobox", { name: "Tune" }).selectOption("score");
+  await page.getByRole("button", { name: /^Sing$/ }).click();
+  await page.getByRole("button", { name: /^Stop$/ }).waitFor();
+  await page.getByRole("button", { name: /^Stop$/ }).click();
+  if (await page.getByRole("textbox", { name: "Lyrics to sing" }).inputValue() !== ownLyrics) errors.push(`[${tag}] MusicXML lost the player's own lyrics`);
+  logs.push(`[${tag}] sing MusicXML: rms ${scoreRms.toFixed(4)}, replay and lyrics restored`);
+  await page.getByLabel("Language", { exact: true }).selectOption({ label: "Auto" });
+  await page.getByRole("combobox", { name: "Tune" }).selectOption("dreamy");
   // bestiary: every creature, its first call, a key in held-voice mode, and the sustain toggle
   await page.getByRole("radio", { name: "Bestiary" }).click();
   await page.waitForTimeout(300);

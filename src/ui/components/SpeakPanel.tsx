@@ -3,8 +3,9 @@ import { skippedLines } from "../skipped.ts";
 import { useStore } from "../store.ts";
 import { speakText, speakPhrases, stopSpeaking, onPlan, currentPlan, spokenWordNow, speakingNow } from "../speech.ts";
 import { mouthWords } from "../mouthWords.ts";
+import type { Language } from "../../wasm/types.ts";
 import { tokenizeIpa } from "../../wasm/engine.ts";
-import { Menu, Slider } from "./Controls.tsx";
+import { LanguageSelect, Menu, Slider } from "./Controls.tsx";
 import { Chip, Screen } from "./Screen.tsx";
 import { ActionBar, PrimaryButton } from "./ActionBar.tsx";
 import { ScoreView, planNow } from "./ScoreView.tsx";
@@ -16,20 +17,42 @@ import { engine } from "../../audio/AudioEngine.ts";
 
 const EXAMPLES = ["Hello. Can you hear me?", "She sells sea shells by the sea shore.", "Every sound here is air moving through a throat.", "The quick brown fox jumps over the lazy dog."];
 
-// IPA pulmonic consonant chart (rows = manner, columns = place); empty cells are null
+// IPA pulmonic consonant chart (rows = manner, columns = place); empty cells are null. The Dental
+// column also holds the laminal denti-alveolars of Japanese た だ な さ ざ (t̪ d̪ n̪ s̪ z̪).
 const PLACES = ["Bilabial", "Labiodental", "Dental", "Alveolar", "Postalveolar", "Retroflex", "Palatal", "Velar", "Uvular", "Pharyngeal", "Glottal"];
 /** short headings for the chart's narrow columns (the full names are the cells' titles) */
 const PLACE_SHORT = ["Bilab", "Labdent", "Dental", "Alveol", "Postalv", "Retrofl", "Palatal", "Velar", "Uvular", "Pharyn", "Glottal"];
 const MANNER_SHORT: Record<string, string> = { "Lateral fricative": "Lat fric", Approximant: "Approx" };
 const CHART: [string, (string | null)[][]][] = [
-  ["Plosive", [["p", "b"], [null, null], [null, null], ["t", "d"], [null, null], ["ʈ", "ɖ"], ["c", "ɟ"], ["k", "g"], ["q", "ɢ"], [null, null], ["ʔ", null]]],
-  ["Nasal", [[null, "m"], [null, "ɱ"], [null, null], [null, "n"], [null, null], [null, "ɳ"], [null, "ɲ"], [null, "ŋ"], [null, "ɴ"], [null, null], [null, null]]],
+  ["Plosive", [["p", "b"], [null, null], ["t̪", "d̪"], ["t", "d"], [null, null], ["ʈ", "ɖ"], ["c", "ɟ"], ["k", "g"], ["q", "ɢ"], [null, null], ["ʔ", null]]],
+  ["Nasal", [[null, "m"], [null, "ɱ"], [null, "n̪"], [null, "n"], [null, null], [null, "ɳ"], [null, "ɲ"], [null, "ŋ"], [null, "ɴ"], [null, null], [null, null]]],
   ["Trill", [[null, "ʙ"], [null, null], [null, null], [null, "r"], [null, null], [null, null], [null, null], [null, null], [null, "ʀ"], [null, null], [null, null]]],
   ["Tap", [[null, null], [null, null], [null, null], [null, "ɾ"], [null, null], [null, "ɽ"], [null, null], [null, null], [null, null], [null, null], [null, null]]],
-  ["Fricative", [["ɸ", "β"], ["f", "v"], ["θ", "ð"], ["s", "z"], ["ʃ", "ʒ"], ["ʂ", "ʐ"], ["ç", "ʝ"], ["x", "ɣ"], ["χ", "ʁ"], ["ħ", "ʕ"], ["h", "ɦ"]]],
+  ["Fricative", [["ɸ", "β"], ["f", "v"], ["θ", "ð", "s̪", "z̪"], ["s", "z"], ["ʃ", "ʒ"], ["ʂ", "ʐ"], ["ç", "ʝ"], ["x", "ɣ"], ["χ", "ʁ"], ["ħ", "ʕ"], ["h", "ɦ"]]],
   ["Lateral fricative", [[null, null], [null, null], [null, null], ["ɬ", "ɮ"], [null, null], [null, null], [null, null], [null, null], [null, null], [null, null], [null, null]]],
   ["Approximant", [[null, null], [null, "ʋ"], [null, null], [null, "ɹ"], [null, null], [null, "ɻ"], [null, "j"], [null, "ɰ"], [null, null], [null, null], [null, null]]],
   ["Lateral", [[null, null], [null, null], [null, null], [null, "l"], [null, null], [null, "ɭ"], [null, "ʎ"], [null, null], [null, null], [null, null], [null, null]]],
+];
+/** Sounds outside the chart's simple place/manner cells: affricates, alveolo-palatals and
+ * secondary articulations, each with what it is (and Japanese kana where applicable). */
+const OTHER: [string, string][] = [
+  ["ts", "voiceless alveolar affricate"],
+  ["dz", "voiced alveolar affricate"],
+  ["t̪s̪", "voiceless laminal denti-alveolar affricate (Japanese つ)"],
+  ["d̪z̪", "voiced laminal denti-alveolar affricate (Japanese づ)"],
+  ["tʃ", "voiceless postalveolar affricate"],
+  ["dʒ", "voiced postalveolar affricate"],
+  ["pf", "voiceless labiodental affricate"],
+  ["ɕ", "voiceless alveolo-palatal fricative (Japanese し)"],
+  ["ʑ", "voiced alveolo-palatal fricative (Japanese じ)"],
+  ["tɕ", "voiceless alveolo-palatal affricate (Japanese ち)"],
+  ["dʑ", "voiced alveolo-palatal affricate (Japanese じ, ぢ)"],
+  ["tʂ", "voiceless retroflex affricate"],
+  ["dʐ", "voiced retroflex affricate"],
+  ["ɥ", "labial-palatal approximant"],
+  ["w", "labial-velar approximant"],
+  ["ɫ", "velarised lateral (dark l)"],
+  ["ɰ̃", "nasalized velar approximant (Japanese ん, where it doesn't close)"],
 ];
 
 /** the segment sounding now in the current utterance */
@@ -95,19 +118,33 @@ function ConsonantChart(props: { onPad: (c: string) => void }) {
               </th>
               {cells.map((pair, i) => (
                 <td key={i}>
-                  {pair.map((sym, j) =>
-                    sym ? (
-                      <button key={j} className={`ipa${sym === now ? " now" : ""}`} onClick={() => props.onPad(sym)} title={`Say it between two vowels`}>
-                        {sym}
-                      </button>
-                    ) : (
-                      <span key={j} className="ipa-empty" />
-                    ),
-                  )}
+                  <div className="ipa-pair">
+                    {pair.map((sym, j) =>
+                      sym ? (
+                        <button key={j} className={`ipa${sym === now ? " now" : ""}`} onClick={() => props.onPad(sym)} title={`Say it between two vowels`}>
+                          {sym}
+                        </button>
+                      ) : (
+                        <span key={j} className="ipa-empty" />
+                      ),
+                    )}
+                  </div>
                 </td>
               ))}
             </tr>
           ))}
+          <tr>
+            <th scope="row" title="Other symbols" aria-label="Other symbols">
+              Other
+            </th>
+            <td colSpan={PLACES.length} className="ipa-other">
+              {OTHER.map(([sym, name]) => (
+                <button key={sym} className={`ipa${sym === now ? " now" : ""}`} onClick={() => props.onPad(sym)} title={`${name}: say it between two vowels`}>
+                  {sym}
+                </button>
+              ))}
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -136,6 +173,8 @@ export function SpeakRight() {
   const start = useStore((s) => s.start);
   const [text, setText] = useState(EXAMPLES[0]);
   const [ipa, setIpa] = useState(false);
+  const [language, setLanguage] = useState<Language>();
+  const [error, setError] = useState<string | null>(null);
   const [rate, setRate] = useState(1);
   const [busy, setBusy] = useState(false);
   const [trans, setTrans] = useState(currentPlan()?.transcription ?? "");
@@ -147,11 +186,13 @@ export function SpeakRight() {
 
   const speak = async () => {
     setBusy(true);
+    setError(null);
     try {
       await start();
-      // the audio didn't start (the error shows on the bar): speaking would only light Stop
       if (!useStore.getState().started) return;
-      await speakText(text, { ipa, body, rate, f0 });
+      await speakText(text, { ipa, language, body, rate, f0 });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -187,6 +228,8 @@ export function SpeakRight() {
       </ActionBar>
       <Screen className="s-say" label="What to say">
         <div className="say">
+          <LanguageSelect value={language} onChange={setLanguage} disabled={ipa} />
+          {error && <p className="score-error" role="alert">{error}</p>}
           <div className="say-row">
             <textarea
               value={text}

@@ -8,7 +8,7 @@ import { call } from "./chimera.ts";
 import { CREATURE_VISUALS } from "../ui/creatureVisuals.ts";
 import type {
   ArticKey, ArticSpec, BeatPreset, BodyMix, BeatSound, BeatStep, CreatureDef, CreatureTelemetry, DemoSong, Gesture, HumanArtic, HumanBody,
-  HumanFrame, Phrase, Plan, Segment, SkippedIpa, SungNote, Syllable, VoiceSource, VowelRef,
+  HumanFrame, Language, Phrase, PhraseInput, Plan, Segment, SkippedIpa, SungNote, Syllable, VoiceSource, VowelRef,
 } from "./types.ts";
 
 export type * from "./types.ts";
@@ -121,9 +121,14 @@ export class EnglishG2P {
   }
 }
 
-/** Lyrics → sung syllables, through the page's dictionary (see EnglishG2P). */
-export function lyricsToSyllables(text: string): Syllable[] {
-  return call("lyricsToSyllables", { text });
+/** Text through a selected frontend; omitted language uses compatibility detection. */
+export function textToPhrases(text: string, language?: Language): Phrase[] {
+  return call("textPhrases", { text, language });
+}
+
+/** Lyrics through the selected frontend and the page's dictionary. */
+export function lyricsToSyllables(text: string, language?: Language): Syllable[] {
+  return call("lyricsToSyllables", { text, language });
 }
 
 // ------------------------------------------------------------------ planning
@@ -144,6 +149,7 @@ export interface PlanOptions {
   /** a sung phrase (planSong sets it): consonants given a pitch hold it, and pitch ramps shrink
    *  to fit short notes */
   sung?: boolean;
+  aspiration?: number;
 }
 
 export function planUtterance(segments: Segment[], options: PlanOptions): Plan {
@@ -155,8 +161,8 @@ export function plannedCounts(ipa: string[]): number[] {
   return call("plannedCounts", { ipa });
 }
 
-export function planPhrases(phrases: { segments: Segment[]; intonation?: "statement" | "question" | "flat"; pause?: number }[], options: PlanOptions): Plan {
-  return call("planPhrases", { phrases: phrases.map((p) => ({ segments: p.segments, intonation: p.intonation, pause: p.pause })), options });
+export function planPhrases(phrases: PhraseInput[], options: PlanOptions): Plan {
+  return call("planPhrases", { phrases, options });
 }
 
 export function planSong(notes: SungNote[], options: { body: BodyMix; bpm: number; t0: number; vibrato: number }): Plan {
