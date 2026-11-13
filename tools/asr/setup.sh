@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-time setup for the ASR judges, in ~/.cache/chimera-asr:
-# - tools/asr/speech_wer.py: faster-whisper in .venv (the small.en model, ~0.5 GB, downloads on
-#   first use). The hill-climb judges with it, so nothing else is installed there.
+# - speech_wer.py and japanese_cer.py share .venv with faster-whisper and pinned pykakasi.
+#   English uses small.en; Japanese uses multilingual small (~0.5 GB each, on first use).
 # - tools/asr/scramble.py: its own pinned env in scramble/.venv: SenseVoice-Small through
 #   sherpa-onnx, with pypinyin and zhconv to score Chinese. The model archive (1.05 GB; the int8
 #   model inside is 0.23 GB) is checked against its sha256 before it's unpacked.
@@ -9,7 +9,7 @@ set -euo pipefail
 dir="$HOME/.cache/chimera-asr"
 mkdir -p "$dir/models"
 [ -x "$dir/.venv/bin/python" ] || uv venv -q --python 3.12 "$dir/.venv"
-uv pip install -q --python "$dir/.venv/bin/python" faster-whisper==1.2.1
+uv pip install -q --python "$dir/.venv/bin/python" faster-whisper==1.2.1 pykakasi==2.3.0
 
 sc="$dir/scramble/.venv"
 [ -x "$sc/bin/python" ] || uv venv -q --python 3.12 "$sc"
@@ -29,3 +29,4 @@ if [ ! -f "$dir/models/$sv/model.int8.onnx" ]; then
 fi
 echo "run: $dir/.venv/bin/python tools/asr/speech_wer.py <outdir> [--against earlier/wer.json]"
 echo "     $sc/bin/python tools/asr/scramble.py <outdir> [--langs zh,ko,en] [--shuffles 8]"
+echo " or: $dir/.venv/bin/python tools/asr/japanese_cer.py <outdir> [--against earlier/cer.json]"
