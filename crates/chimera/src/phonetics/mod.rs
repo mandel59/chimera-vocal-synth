@@ -11,12 +11,22 @@ pub mod english;
 pub mod inventory;
 pub mod ipa;
 pub mod korean;
+pub mod japanese;
+pub mod text;
 pub mod planner;
 pub mod russian;
 pub mod sing;
 pub mod songs;
 pub mod syllables;
 pub mod vowel_data;
+
+/// How a finite phrase-final constriction is released. Unset preserves the existing timing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ReleaseTiming {
+    /// Keep the articulation through the scheduled breath/voice tail (not runtime detection).
+    AfterBreath,
+}
 
 /// One phoneme in an utterance.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -55,6 +65,23 @@ pub struct Segment {
     /// vowel said with them part-open (IPA combining diaeresis below); None or false: modal
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub breathy: Option<bool>,
+    /// how far the folds part while a voiced affricate's frication is released (the voice's
+    /// abduction control), as its front end decides it; None: they stay as for the vowel
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release_abduction: Option<f64>,
+    /// a vowel said without voice, as its front end decides it (Japanese すき, です): the folds are
+    /// apart for its whole length and the constriction of this fricative (IPA) is held through
+    /// it, over the vowel's own tongue shape (an empty string: nothing is held, where the vowel
+    /// is narrow enough itself). The vowel keeps its time. None: voiced
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub devoiced: Option<String>,
+    /// speech pitch relative to the phrase's base (× f0, before declination), in place of the
+    /// stress accents: the high and low morae of a pitch-accent language
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pitch: Option<f64>,
+    /// Finite speech only; currently supported for a phrase-final closed nasal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release_timing: Option<ReleaseTiming>,
 }
 
 impl Segment {
@@ -72,6 +99,30 @@ pub enum Intonation {
     /// final rise
     Question,
     Flat,
+}
+
+/// A text phrase before the gestural planner assigns its timeline.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Phrase {
+    pub segments: Vec<Segment>,
+    pub intonation: Intonation,
+    /// pause after the phrase (s)
+    pub pause: f64,
+    /// the words said, one per word end in `segments`
+    pub words: Vec<String>,
+    /// the language's tempo: its durations are divided by this on top of the speaker's rate, so
+    /// 1× is a natural pace in every language (English: none, 1)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rate: Option<f64>,
+    /// the language's speaking pitch against the voice's, in semitones for a male and a female
+    /// speaker (bodies in between blend them): languages set the sexes apart by different amounts
+    /// (English: none, 0)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub register: Option<[f64; 2]>,
+    /// the language's aspiration of voiceless stops (see `PlanOptions::aspiration`; English: none)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aspiration: Option<f64>,
 }
 
 /// A segment as the planner timed it.
@@ -109,6 +160,10 @@ pub struct Syllable {
     /// continue the previous syllable's vowel at a new pitch
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub melisma: Option<bool>,
+    /// Minimum sung nucleus interval before consonants are squeezed (seconds). Unset: 50 ms.
+    /// The note grid and consonant floors still take precedence when a note is too short.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_vowel: Option<f64>,
     /// last syllable of a word (codas sound here; phrase breaks follow punctuation); may be left
     /// out of hand-written JSON (false)
     #[serde(default)]

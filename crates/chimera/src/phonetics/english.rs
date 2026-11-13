@@ -4,7 +4,6 @@
 
 use super::syllables::WordSource;
 use super::{Intonation, Segment};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 fn arpa(base: &str) -> Option<&'static str> {
@@ -81,16 +80,8 @@ fn reduce_vowel(ipa: &str) -> Option<&'static str> {
     })
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Phrase {
-    pub segments: Vec<Segment>,
-    pub intonation: Intonation,
-    /// pause after the phrase (s)
-    pub pause: f64,
-    /// the words said, one per word end in `segments`
-    pub words: Vec<String>,
-}
+// Keep the original import path available to existing CLI and library callers.
+pub use super::Phrase;
 
 #[derive(Clone, Debug, Default)]
 pub struct EnglishG2P {
@@ -161,7 +152,7 @@ impl EnglishG2P {
             };
             words.clear();
             if !segs.is_empty() {
-                phrases.push(Phrase { segments: segs, intonation: if q { Intonation::Question } else { Intonation::Statement }, pause, words: said });
+                phrases.push(Phrase { segments: segs, intonation: if q { Intonation::Question } else { Intonation::Statement }, pause, words: said, rate: None, register: None, aspiration: None });
             }
         };
         for part in &parts {

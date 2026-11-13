@@ -24,6 +24,7 @@ Korean and Mandarin need (`ɕ ʑ tɕ dʑ tʂ dʐ ɥ`, step 3) and aspiration as 
 |---|---|---|---|
 | Latin | English | CMUdict (letter-to-sound until it loads) | `phonetics/english.rs`, `syllables.rs` |
 | Hangul | Korean | nothing: a block's letters are its sounds | `phonetics/korean.rs` |
+| Kana | Japanese | kana; CLI kanji readings use the optional `jdic` feature | `phonetics/japanese.rs`, [languages.md](languages.md) |
 | Cyrillic | Russian | nothing: spelling rules, stress marked with an acute ([russian.md](russian.md)) | `phonetics/russian.rs` |
 
 The router (`read_lyrics` in `syllables.rs`) sends each word to the front end whose script it is
@@ -86,8 +87,8 @@ by hand, or to sing a language that has no front end yet.
    `ɕ ʑ tɕ dʑ tʂ dʐ ɥ` were, and let `chimera calibrate consonants` set a fricative's constriction:
    it appends new entries and leaves existing ones alone.
 2. **Write the front end**: implement `FrontEnd` (which characters start and continue its words,
-   and word → syllables; `word_after` also gets the word before, for words that lean on each
-   other, as a Russian preposition with no vowel does), then add it to the router's list in `lyrics_to_syllables`. A front end
+   and word → syllables; `word_after` also gets the preceding word of the same front end
+   and the preceding syllable, for Russian prepositions and Japanese long-vowel continuations), then add it to the router's list in `lyrics_to_syllables`. A front end
    that needs data should load it like CMUdict: a gzipped file in `public/data/`, fetched only when
    the lyrics need it.
 3. **Say the phonology** in the syllables (aspiration and its length). Build `Syllable` and
@@ -139,3 +140,47 @@ in for a native listener; the test says where to look and whether a change moved
   Latin text is English. The second Latin-script front end brings an explicit language choice,
   with English the default (#40).
 - **Tone and pitch accent** need pitch contours (#32 step 4).
+
+Japanese singing can distinguish a nasal on its own note (`あん`, two syllables) from a
+nasal attached to the preceding vowel (`あ𛅧`, one syllable). U+1B167 KATAKANA LETTER SMALL N
+is input notation; the displayed syllable is ordinary `あん`. The coda still assimilates to
+the next consonant. It is sung at the end of a note, after a melisma, or on live key release /
+legato transition, using the existing coda planner. It must immediately follow vowel-bearing
+kana or their long-vowel mark; unattached, repeated or conflicting coda marks are errors.
+This notation is for lyrics. Ordinary spoken `ん` retains the speech front end's rules.
+
+The traditional demo **あんたがたどこさ** uses `あ𛅧` and the first `せ𛅧` on single notes;
+the later `せん` uses separate notes. `くってさ` uses the existing `くっ | て | さ` split:
+the first note's stop coda overlaps the second note's stop onset, maintaining one closure.
+The melody's provenance and rhythm adaptations are documented beside its data in
+`crates/chimera/src/phonetics/songs.rs`. Demo songs currently have no explicit rests, so
+rests extend the preceding note with a phrase breath; vowels in `ぽう`, `やい` and `ちょい`
+subdivide a single pitch rather than introducing another notation.
+
+A finite speech-final closed nasal can opt into `Segment.releaseTiming: "afterBreath"`.
+The planner extends only its oral and velum gestures through the scheduled breath / exhale
+tail. Source gestures, segment times, pitch and `Plan.end` keep their original meaning.
+A following phrase bounds the release ramps, including a zero-length pause. This is a
+planning rule, not detection of the last voiced sample; `releaseHold` controls release speed
+and cannot substitute for retaining a target. Unset fields preserve legacy plans. Internal
+segments, open-ended notes and sung phrases ignore this request. Japanese speech-final `ɴ`
+opts in; English and Korean do not. No gesture wire format or layout version changes.
+
+Sung syllables may opt into `minVowel` (seconds), a minimum nucleus interval before
+`plan_song` squeezes the coda and next onset. Unset preserves the existing 50 ms budget;
+negative or smaller requests cannot reduce that default. The note grid and 12 ms consonant
+floor still take precedence, so an impossibly short note is not stretched to satisfy it.
+Long-vowel marks and melismas retain the request. Japanese vowel-bearing syllables request
+100 ms and explicitly mark their voiceless stops/affricates `aspirated: false`. At 100 BPM,
+「くまもとさ」previously left /o/ only 54 ms between /t/ release and anticipatory /s/
+abduction, with essentially no voicing; the two changes together leave an audible voiced
+interval. This is a shared opt-in timing parameter, not a language check in the planner.
+English/Korean, speech and default hand-written JSON retain their previous timing. Existing
+Japanese songs also receive the corrected aspiration and short-note allocation; their note
+pitches, beats and syllable counts are retained. Native-speaker listening remains required.
+
+In Antagata, breath marks follow the notated rests. `せんばやまにわたぬき`,
+`りょーしがてっぽー`, and `このはでちょい` remain within phrases. A grammatical
+comma here used to split planning before the next onset was fitted into the note, so
+「で」could be covered by the following affricate despite having a planned vowel.
+`tests/song_phrasing.rs` checks both the rest positions and audible, open, voiced /e/.
