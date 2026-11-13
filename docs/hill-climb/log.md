@@ -1407,3 +1407,197 @@ No batch uses it yet: whether it decides the next batch, and Whisper guards, is 
   - **The male /ʃ/ centroid**, overshot by batch 2 (3.48 kHz, men 3.13).
   - **A diagnostic:** the voice lacks 1–4 kHz presence after batch 1 (female 1–2 kHz −16.1 dB re
     0–8 kHz, women −10.8). That is a spectral shape to fix, not a tilt.
+
+### Fork experiments: the hiss and the uneven vowels (2026-11-09, mandel59/chimera-vocal-synth)
+
+Asked about by the fork's owner, from listening: a hiss in the singing voice that stays, "like a
+leaking hose", with Breathy at 0, and vowels that aren't equally loud. Measured on held sung
+vowels (pressure 9, tension 0.55), between-harmonic energy re the harmonics in 40 ms frames:
+male 6–10 kHz −7 dB and 10–16 kHz −4 dB, mostly the glottal turbulence source (−9 / −5 alone),
+then the per-cycle jitter (−14 / −10 alone); shimmer and drift are small; the female voice is
+about 12 dB cleaner. The glottal noise peaks at closure and lasts 5–10 dB down into the closed
+phase; closing the posterior chink doesn't change it. Vowel loudness (BS.1770 K-weighted, same
+pitch): male A3 あ −10.0, い −16.1, う −17.6, え −8.5, お −9.6; female A4 あ −8.4, い −12.0,
+う −17.5, え −12.5, お −14.8. Female い and う are sung above their F1 (428, 399 Hz).
+
+Baseline: commit 31dfd729 (`out/hill/baseline`): singer 0.587 training, 0.811 held-out, note
+MCD 8.614 dB; speech 41.06 % training, 45.67 % held-out. Judged like batch 2's experiments, but
+the owner decided by ear. The speed bench was not run.
+
+### 21. Half the glottal turbulence noise (reverted)
+
+- Hypothesis: the glottal jet's noise is as strong as the male voice's harmonics above 8 kHz, and
+  is heard as a hiss on every vowel; a trained singer's is weaker.
+- Change: `NoiseGains::glottis` 3.2e-6 → 1.6e-6 (`voice/human_airway.rs`). Held male あ: 6–10 kHz
+  −7.3 → −11.0 dB, 10–16 kHz −3.5 → −6.6 dB.
+- Speech: 41.06 → 38.74 % (BETTER, within the judge's ±2-point noise); held-out 45.67 → 46.33 %.
+- Singer: 0.587 → 0.586 (NO CLEAR CHANGE), held-out 0.811 → 0.809; note MCD 8.616 dB; no guard
+  broke.
+- Verdict: the owner heard no clear difference. Reverted.
+- Next: if the hiss is retried, look at the noise's timing (strongest at and after closure, where
+  a real glottis has little flow), not its level.
+
+### 22. Jitter correlated from cycle to cycle (reverted)
+
+- Hypothesis: real jitter is serially correlated (Schoentgen & de Guchteneere 1995); the source
+  drew each cycle's period independently, which makes the high harmonics incoherent.
+- Change: a `jitter_corr` (AR(1)) in `sources/glottis.rs`, 0.7 from `apply_source`, the same
+  per-cycle spread. Held male あ: 6–10 kHz −7.3 → −8.0 dB (female −19.3 → −20.6).
+- Speech: 41.06 → 39.74 % (NO CLEAR CHANGE); held-out 44.0 %.
+- Singer: 0.587 → 0.591 (NO CLEAR CHANGE), held-out 0.800; aperiodicity cost 0.06 → 0.09; note
+  MCD 8.633 dB.
+- Verdict: no clear difference by ear, and barely measurable. Reverted.
+
+### 23. Formant tuning: F1 follows a sung note above it (reverted)
+
+- Hypothesis: a note above a vowel's F1 loses the resonance under its fundamental; singers open
+  the vowel until F1 sits just above the pitch (Sundberg 1975; Joliveau, Smith & Wolfe 2004).
+- Change: in `plan_utterance`, for a sung vowel with F1 below 1.1 × f0, the tongue body lowers by
+  log2(1.1 f0 / F1) cm (at most 0.6) for a front or central vowel, or the lips open by 4× that
+  (at most 0.8 cm²) for a back rounded one. In this tract the jaw alone barely moves F1; the
+  tongue does (female う 398 → 538 Hz at −0.4 cm). Female あいうえお at 523 Hz: loudness spread 9.3
+  → 3.9 dB (い −14.1 → −8.6, う −18.5 → −10.5); at 440 Hz 9.3 → 6.9; male unchanged (below F1).
+- Speech: unchanged (singing only).
+- Singer: 0.587 → 0.585 (NO CLEAR CHANGE), held-out 0.810; note MCD 8.614 → 8.597 dB.
+- Verdict: the owner heard no clear difference in さくらさくら. Reverted.
+- Next: the male voice's spread (い, う 6–8 dB under あ at A3) is not formant tuning's: every note
+  is below F1 there.
+
+### 24. Japanese dʑ: separate closure, release flow and vowel recovery (#8; diagnostic only)
+
+- Hypothesis: the short voiced affricate has a closure but insufficient flow through its
+  fricative release. A plain voiced fricative gets 0.035 abduction; the affricate gets none.
+  Check this before moving the tongue or repeating experiment 15's duration extension.
+- Baseline: `3e4bac71`. At 48 kHz, os=2, male 110 Hz / female 200 Hz / child 260 Hz,
+  `/ˈɑdʑɑ/` has a planned 47 ms affricate and 13 / 13 / 14 ms with oral area below 0.01 cm².
+  `/ˈɑʑɑ/` does not close. The opening window's 2–8 kHz energy relative to the following
+  vowel is +0.50 / +0.92 / −0.63 dB, reproducing #8's male/female figures. This is not an
+  isolated frication measurement: voiced harmonics contribute too.
+- Controlled candidate: append a release-only gesture with the existing voiced-fricative
+  target 0.035 and strength 3. No tongue, duration, pitch or source changes. An unbounded
+  30 ms release ramp was compared with one ending inside the consonant: ramp-in is at most
+  the closure duration; hold ends at max(split, end−30 ms); ramp-out is at most the release
+  duration. Only the bounded version is offered for listening. This is a test fixture,
+  **not a production-planner change**.
+- Bounded result, from split to 15 ms after the planned affricate end (cm³/s): mean glottal
+  flow 100.0→117.0 male, 84.8→101.6 female, 54.1→66.5 child. Oral-noise source peak in that
+  window 26.8→30.6, 28.7→30.9, 15.5→22.7 (internal amplitude, not radiated SPL).
+  Geometry and closure time are unchanged. In all 15 body×vowel/context cases (VCV plus
+  ja/ji/ju/jo), flow increases and following-vowel voicing at +20…45 ms remains above 0.99.
+- The bounded VCV's same 2–8 kHz metric is +0.71 / −2.72 / −5.81 dB. It does not move the
+  same way as flow/source amplitude, so it cannot alone decide whether the consonant sounds
+  more like ja. Do not optimize this one band value or call these figures a recognition gain.
+- Reproduction/guards: `cargo test -p chimera --test voiced_affricates -- --nocapture`.
+  The test reports baseline and bounded-candidate measurements and guards real closure,
+  audible/voiced following vowels and the reference fricative's open airway in all bodies.
+  It is not a perceptual judge and does not prescribe that a tap must never make contact.
+- Listening material: `/tmp/chimera-issue8/{male,female,child}-{before,candidate}.wav`,
+  VCV then ja/ji/ju/jo, one gain shared by both variants for each body. Raw audio, plans,
+  per-ms telemetry and the temporary probe source are also there. They are not committed.
+- Actual kana path: Japanese speech divides the planned dʑ by TEMPO=1.95, to **25.64 ms**.
+  Across all three bodies and じゃ/じ/じゅ/じょ, all 11 sampled milliseconds of the planned
+  release remain below 0.01 cm² (male じゃ max 0.00464 cm², female/child 0). In contrast, the 47 ms VCV seals for only 1 ms in its release.
+  The bounded glottal candidate does not change this. Child じゅ even moves mean flow
+  24.7→23.4 cm³/s and oral source peak 12.5→8.5. The 15-case IPA result does not generalise
+  to the 12 kana cases; following-vowel voicing remains above 0.94, but release flow is
+  not consistently improved.
+- A target was first run failing on the old engine, then un-ignored with the front-end
+  repair below: `cargo test -p chimera --test voiced_affricates japanese_kana_has_an_open_fricative_release_before_the_vowel`.
+  It requires an open release within the planned consonant. This is necessary but does
+  not by itself establish a perceptually clear Japanese ja.
+- Verdict: the comparison isolates a release-flow effect, but it does not fix the short
+  kana release and perceptual improvement has not been established. Candidate rejected.
+  No ASR/TSP/CSD verdict is claimed; the common-model candidate still needs the normal
+  speech/singer guards before keeping it. No targets, generated tables or judges changed.
+- Next: investigate the compressed affricate's closure/release timing and gesture
+  overlap. Keep the real closure and following vowel while creating time for frication;
+  do not adopt a glottal-only fix from the IPA comparison. Listening material remains
+  available to assess what the controlled change sounds like. A missing closure has
+  been ruled out for the reported VCV, not every context or body setting. The historical experiment 29 is on another branch and
+  is not an upstream fix that this port accidentally removed.
+
+
+### Japanese voiced-affricate duration: repair the kana path's second shortening (#8)
+
+- Cause: Japanese onsets left `Segment.dur` unset, so /dʑ/ used English's short 50 ms
+  duration-table entry, then the language's rate 1.95 divided it to 25.64 ms. The shared
+  inventory already specifies 120 ms for the sound. A voiced /dz/ had no such 50 ms entry.
+- Fix: the Japanese speech front end explicitly supplies the existing inherent duration
+  for voiced-affricate onsets. No new number, IPA target, attribute or physical-model
+  change. The common planner and phrase rate are unchanged. Lyrics/singing and typed IPA
+  still use their previous paths. The glottal-opening candidate above is not adopted.
+- Result at the default rate: 61.54 ms /dʑ/; 28 sampled ms of the planned release are open
+  instead of 0. Male/female/child じゃ maximum release areas 0.00464/0/0 →
+  0.206/0.178/0.131 cm². Following-vowel voicing stays above 0.99. The prior failing test
+  is now active and covers all three bodies, じゃ/じ/じゅ/じょ and rates 0.7/1/1.5.
+- Scope: this fixes the kana path's lost fricative interval. It does not establish that
+  typed /ˈɑdʑɑ/ is perceptually good or close issue #8. Human listening is still needed.
+  ASR/TSP/CSD were not run: this is a front-end duration correction, not adoption of the
+  common-model glottal experiment. The existing English/singing fixtures guard unchanged
+  shared behaviour; production targets, source model and judges remain untouched.
+- Validation: both full golden-bless runs passed (218 Rust tests, 2 existing ignored),
+  then `bun run test` passed the same 218 Rust tests and all 69 Bun tests (884 assertions).
+  Typecheck and production build passed. All 21 golden files remain byte-identical.
+  Additional compatibility fingerprints match for English speech (3), Korean songs (2)
+  and the four existing demo songs: full plans and the first two seconds of audio.
+- Bench against the previous commit's recorded run: os=2 27.1%→25.8% of one core,
+  os=1 12.1%→11.8%. Shared rendering is unchanged; these noisy figures show no slowdown.
+
+### Japanese voiced affricates: the folds part for the frication (#8)
+
+- Cause: a voiced affricate releases behind adducted folds. Voicing stops in the closure (male
+  じゃ: voicing 0.9 → 0.04 at the release), so the first 10 ms of the release have about
+  10 cm³/s of glottal flow, and the rest modal voicing's (mean about 110), where ちゃ has 200–400
+  through the same 0.15–0.2 cm² constriction. The noise goes with the flow squared: male じゃ's
+  3–10 kHz peak is −20 dB re the vowel's loudest frame, ちゃ's −13. The owner heard じゃ as りゃ.
+  Experiment 15 had the same lead for /dʒ/ ("quiet, not mistimed").
+- Change: `Segment::release_abduction`, which a front end may set on a voiced affricate; the
+  planner then parts the folds over the release only (from the 55 % split, hold ending 30 ms
+  before the consonant's end, ramps kept inside the consonant, strength 3). Japanese sets 0.15
+  on dʑ and d̪z̪ onsets, spoken and sung. Unset, the plan is what it was: English, Korean and
+  typed IPA are untouched, and no golden file changed.
+- Values, by the owner's ear on male じゃ じ じゅ じょ (probe renders): 0.035, 0.08, 0.15, 0.25 give a
+  3–10 kHz peak of −17.5, −14.8, −13.1, −12.4 dB (0: −21.2). The owner chose 0.15 over 0.08.
+- Result (CLI, じゃ): male −20.0 → −12.9 dB (ちゃ: −12.9); female −35.5 → −28.6 dB, which is still
+  at her vowel's own level in that band. Test, 3 bodies × じゃ じ じゅ じょ × rates 0.7 / 1 / 1.5:
+  release flow ×1.3–2.1, mean oral noise source ×1.9–9, vowel voicing ≥ 0.99 after it.
+- Not fixed: the female and child frication level (experiment 13: every fricative is 10–15 dB
+  lower re the vowel than the male's), so their じゃ gains little that can be heard. The spoken
+  [ʑ] between vowels (あじゃ) is 34 ms and reaches its constriction for the last 14 ms only.
+  English /dʒ/ keeps the fault.
+- Validation: goldens blessed twice (none changed), `bun run test` (220 Rust, 2 ignored; 69
+  Bun), typecheck, build, `bun tools/e2e.ts` against the preview (exit 0). Bench os=2 25.8 →
+  26.3 %, os=1 11.8 → 12.0 % of one core (noise; the planner alone changed). No ASR, TSP or CSD
+  run: the other languages' plans are unchanged, and Japanese is judged by ear.
+
+### Japanese speech: devoiced い and う keep their mora and the consonant's place (#12)
+
+- Before: no devoicing (dropping the vowel was heard as a missing mora). The vowels between
+  voiceless consonants were half voiceless anyway, by accident: of the 87 ms ɯ of すき 35 % was
+  voiced, the i of あした 36 %, the first i of しち 19 % (male).
+- Tried first, in a probe: the folds 0.3 apart over the vowel and nothing else. The owner heard
+  too much aspiration, and suggested the place of articulation wasn't held. Measured: over the
+  ɯ of すき the energy sat at 0–2 kHz (20 and 16 dB in the two 1 kHz bands, 15 dB at 3–5 kHz): the
+  [s] had let go and the breath went through the open vowel, an [h]. Half the breath pressure
+  (−3 to −6 dB), or the fricative taking 60 % of the vowel's time, left that [h] in the rest.
+  Folds only 0.15 apart: voicing comes back (です's ɯ 22 % voiced).
+- Change: `Segment::devoiced` names the fricative a voiceless vowel is said through. The planner
+  parts the folds (0.3, as for a voiceless consonant) over the vowel and holds that fricative's
+  constriction under it; the vowel keeps its time and its tongue shape. Same ɯ of すき: 0–2 kHz
+  12 and 4 dB, 3–5 kHz 24 and 18 dB, the level about the same. The owner chose this (probe
+  variant 7).
+- Japanese speech sets it (`devoiced_morae`): a short い or う after one voiceless consonant and
+  before another, or phrase-final after a fricative or affricate (です). Not the accented mora,
+  not before っ, not two morae in a row. A fricative goes on, an affricate's release goes on, き
+  and ぴ release into [ç], ぷ into [ɸ]. く holds nothing: a held [x] leaves the front–back place
+  to the vowel and opened the tract (narrower than 0.35 cm² for 30 % of the vowel, against 80 %
+  with ɯ alone). Singing, typed IPA and the other languages don't set it; no golden file changed.
+- Test (`tests/devoicing.rs`), 3 bodies × 6 words × rates 0.7 / 1 / 1.5: the vowel's time is
+  unchanged, voicing under 0.05, output not silent, the constriction narrower than 0.35 cm² for
+  over 80 % of the vowel (く: 60 %), the next vowel's voicing unchanged.
+- Not judged: the stops' releases (き, く, ぴ, ぷ) by ear, in the implemented build; ASR, TSP, CSD.
+  The rule is a simple default: no dictionary accent (#2), so です is devoiced only as the
+  phrase-final case, and speakers and rates vary all of it.
+- Validation: goldens blessed twice (none changed), `bun run test` (224 Rust, 2 ignored; 69
+  Bun), typecheck, build, e2e against the preview (exit 0). Bench os=2 27.2 %, os=1 12.4 % of
+  one core (26.3 / 12.0 before; the planner alone changed, on Japanese speech only).
