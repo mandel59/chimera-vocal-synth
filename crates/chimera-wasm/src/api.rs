@@ -12,7 +12,8 @@ use chimera::phonetics::beatbox::{self, BeatStep};
 use chimera::phonetics::planner::{self, PhraseInput, PlanOptions};
 use chimera::phonetics::sing::{self, MelismaOptions, NoteOnOptions, SongOptions, SungNote};
 use chimera::phonetics::english::EnglishG2P;
-use chimera::phonetics::{Segment, Syllable, ipa, songs, syllables, vowel_data};
+use chimera::phonetics::{Segment, Syllable, ipa, songs, text, vowel_data};
+use chimera::phonetics::text::Language;
 use chimera::voice::human_airway::HumanAirway;
 use serde_json::{Value, json};
 use std::cell::RefCell;
@@ -40,6 +41,13 @@ thread_local! {
 }
 
 type Res = Result<Value, String>;
+
+fn check_reading(input: &str, language: Option<Language>) -> Result<(), String> {
+    if language.unwrap_or_else(|| Language::detect(input)) == Language::Japanese && text::needs_reading(input) {
+        return Err("Japanese text needs kana readings; kanji dictionaries are available in the CLI with --features jdic".into());
+    }
+    Ok(())
+}
 
 fn arg<T: serde::de::DeserializeOwned>(req: &Value, key: &str) -> Result<T, String> {
     serde_json::from_value(req.get(key).cloned().unwrap_or(Value::Null)).map_err(|e| format!("{key}: {e}"))
@@ -125,8 +133,19 @@ fn dispatch(st: &mut State, req: &Value) -> Res {
             Ok(json!(true))
         }
         "g2pPhrases" => to_json(&st.g2p.to_phrases(&arg::<String>(req, "text")?)),
+        "textPhrases" => {
+            let input: String = arg(req, "text")?;
+            let language: Option<Language> = arg(req, "language")?;
+            check_reading(&input, language)?;
+            to_json(&text::to_phrases(&input, language, &st.g2p))
+        }
         "g2pWord" => to_json(&st.g2p.word(&arg::<String>(req, "word")?, arg::<Option<bool>>(req, "reduce")?.unwrap_or(true))),
-        "lyricsToSyllables" => to_json(&syllables::lyrics_to_syllables(&arg::<String>(req, "text")?, &st.g2p)),
+        "lyricsToSyllables" => {
+            let input: String = arg(req, "text")?;
+            let language: Option<Language> = arg(req, "language")?;
+            check_reading(&input, language)?;
+            to_json(&text::lyrics_to_syllables(&input, language, &st.g2p)?)
+        }
         // ---------------------------------------------------------------- creatures
         "creaturePreview" => {
             let id: String = arg(req, "id")?;
