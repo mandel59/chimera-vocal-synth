@@ -4,6 +4,14 @@ use chimera::phonetics::inventory::{Manner, phoneme};
 use chimera::phonetics::ipa::tokenize_ipa;
 
 #[test]
+fn shared_language_sounds_have_one_inventory_definition() {
+    let mut symbols = std::collections::HashSet::new();
+    for sound in chimera::phonetics::inventory::consonants() {
+        assert!(symbols.insert(sound.ipa), "duplicate phoneme {}", sound.ipa);
+    }
+}
+
+#[test]
 fn affricates_tokenize_as_one_segment() {
     let ipa: Vec<String> = tokenize_ipa("tɕi tɕʰi dʑa tʂa dʐu ɕy ʑə ɥɛ").into_iter().map(|s| s.ipa).collect();
     // ʰ isn't a segment: it sets the stop's aspiration (#73)

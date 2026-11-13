@@ -307,9 +307,9 @@ impl FrontEnd for Russian {
         is_letter(c) || c == '\u{301}' || c == '-'
     }
     fn word(&self, word: &str) -> Vec<Syllable> {
-        self.word_after(word, None)
+        self.word_after(word, None, None)
     }
-    fn word_after(&self, tok: &str, prev: Option<&str>) -> Vec<Syllable> {
+    fn word_after(&self, tok: &str, prev: Option<&str>, _previous_syllable: Option<&Syllable>) -> Vec<Syllable> {
         // typed hyphens split syllables explicitly, as in English
         let parts: Vec<&str> = tok.split('-').filter(|p| !p.is_empty()).collect();
         let mut syls: Vec<Syllable> = Vec::new();
