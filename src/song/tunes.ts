@@ -3,7 +3,7 @@
  * written for this instrument except Twinkle (traditional). Each phrase is one line of lyrics; a song longer than the tune goes round again.
  * Notes are [midi, beats], at the female voice's pitch; `octave` shifts the other bodies, as the
  * demo songs do. Phrases end on a long note: the breath before the next line comes out of it.
- * After the moods come the engine's other demo songs (contributed ones among them), by name and
+ * After the moods come the engine's demo songs (including the moods' original words), by name and
  * with their own words.
  */
 import { DEMO_SONGS } from "../wasm/engine.ts";
@@ -18,13 +18,9 @@ export interface Tune {
   lyrics?: string;
 }
 
-/** the demo songs the moods take their melodies from */
-const borrowed = new Set<string>();
-
 /** a demo song's melody (the engine's catalog, shared with `chimera render song`) cut into phrases of `sizes` notes */
 function fromDemo(id: string, name: string, demo: string, sizes: number[]): Tune {
   const d = DEMO_SONGS.find((s) => s.name === demo)!;
-  borrowed.add(demo);
   let at = 0;
   const phrases = sizes.map((n) => d.notes.slice(at, (at += n)).map(([m, b]): [number, number] => [m, b]));
   return { id, name, bpm: d.bpm, octave: d.octave, phrases };
@@ -88,8 +84,8 @@ const MOODS: Tune[] = [
   fromDemo("twinkle", "Twinkle, twinkle", "Twinkle, twinkle", [7, 7]),
 ];
 
-/** every other demo song as written: one phrase, its own words (a song added to the engine's catalog shows up here) */
-const SONGS: Tune[] = DEMO_SONGS.filter((d) => !borrowed.has(d.name)).map((d) => ({
+/** every demo song as written: one phrase, its own words (new catalog songs show up automatically) */
+const SONGS: Tune[] = DEMO_SONGS.map((d) => ({
   id: `song:${d.name}`,
   name: d.name,
   bpm: d.bpm,

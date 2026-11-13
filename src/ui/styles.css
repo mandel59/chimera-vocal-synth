@@ -1991,6 +1991,13 @@ input[type="range"]::-moz-range-thumb {
   height: 18px;
 }
 
+/* Some cells have two voiced/unvoiced pairs; keep them inside the 600 px chart. */
+.ipa-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-items: center;
+}
+
 .ipa-chart button.ipa {
   background: transparent;
   border: 0;
@@ -2071,6 +2078,28 @@ input[type="range"]::-moz-range-thumb {
 
 .screen-body > .roll-canvas {
   height: 100%;
+}
+
+.language-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.language-select select {
+  background: var(--inset);
+  color: var(--text);
+  border: 1px solid var(--frame);
+  font: inherit;
+  padding: 4px 6px;
+}
+
+.score-error {
+  flex-basis: 100%;
+  color: var(--red);
+  font-size: 11px;
 }
 
 .lyrics {

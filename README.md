@@ -25,7 +25,7 @@ for tests and the `chimera` CLI.
 
 - **Play**: drag the tongue, lips and jaw in a live cutaway of the head; vowel pad, encoders,
   computer keyboard and Web MIDI.
-- **Speak**: English text (CMUdict with a letter-to-sound fallback) or IPA, turned into
+- **Speak**: English text (CMUdict with a letter-to-sound fallback), Japanese kana, or IPA, turned into
   gestures and prosody, with the gestural score and a consonant chart on screen. In IPA mode a
   notice under the box lists the symbols and marks the voice doesn't say (`chimera render speech`
   prints the same as warnings).
@@ -33,8 +33,9 @@ for tests and the `chimera` CLI.
   fitted to a phrase of it (Tempo and Key on the Voice screen); **Record video** sings it again into a
   9:16 clip to share. The keys sing the same words a syllable at a time, legato or not, onto a
   pitch roll; consonants land before the beat. Lyrics can be English, Korean (Hangul: one block per
-  note, with Korean sound rules) or Russian; each language is a front end
+  note, with Korean sound rules), Russian or Japanese kana; each language is a front end
   ([docs/language-front-ends.md](docs/language-front-ends.md)).
+  MusicXML (`.musicxml`, `.xml`, `.mxl`) can be opened or dropped on the lyrics; files stay in the browser.
 - **Beatbox**: pads and a step sequencer, every drum an articulatory gesture.
 - **Bestiary**: songbird (two-voice syrinx), seal, alligator and elephant.
 - **Duet** (`?show=<id>`): two 3D heads replay a pre-rendered song.
@@ -62,14 +63,20 @@ cargo run --release -p chimera-cli -- render speech|text|song|notes|beatbox|crea
 cargo run --release -p chimera-cli -- diagnose       # nasal leakage, formants, bandwidths, pitch
 cargo run --release -p chimera-cli -- compare csd    # against a real singer (docs/csd-comparison.md)
 cargo run --release -p chimera-cli -- compare tsp    # against 23 real speakers (docs/speech-comparison.md)
+cargo run --release -p chimera-cli -- render text out/ja "さくら。" male --lang ja
+cargo run --release -p chimera-cli --features jdic -- render text out/kanji "雨が降る。" male --lang ja
 bun tools/spectrogram.ts in.wav out.png
 bun tools/musicxml-to-notes.ts score.mxl P1 --out p1.json   # a score's part → `render notes` melody
 ```
+
+Speak and Sing offer Auto, English and Japanese language selection. Japanese input in the
+browser uses kana; the optional CLI `jdic` feature supplies kanji readings and pitch accents.
 
 ## Docs
 
 - [docs/architecture.md](docs/architecture.md): the acoustic model (FDTD airway, sources,
   anatomy, gestures), and its [references and credits](docs/architecture.md#references-and-credits).
+- [docs/languages.md](docs/languages.md): language selection, Japanese readings and the port boundaries.
 - [docs/rust-engine.md](docs/rust-engine.md): the engine's real-time and determinism contract,
   and the browser boundary.
 - [docs/ui-redesign.md](docs/ui-redesign.md) and [docs/mockups/](docs/mockups/): the vector

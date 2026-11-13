@@ -70,3 +70,36 @@ describe("the trail at the mouth", () => {
     expect(t.entries.map((e) => e.word.key)).toEqual(["b"]);
   });
 });
+
+describe("sung syllables as written", () => {
+  test("English hyphenates inside a word, Japanese is written a mora at a time", async () => {
+    const { writtenSyllable } = await import("../src/show/words.ts");
+    const { lyricsToSyllables } = await import("../src/wasm/engine.ts");
+    const shown = (text: string) => lyricsToSyllables(text).map((s) => writtenSyllable(s.text, s.wordEnd));
+    expect(writtenSyllable("Twin", false)).toBe("Twin-");
+    expect(writtenSyllable("kle", true)).toBe("kle");
+    // asked 2026-11-09: no hyphens in Japanese lyrics
+    expect(shown("さくら さくら")).toEqual(["さ", "く", "ら", "さ", "く", "ら"]);
+    expect(shown("きょうわ")).toEqual(["きょ", "う", "わ"]);
+    expect(shown("サクラ")).toEqual(["サ", "ク", "ラ"]);
+  });
+});
+
+
+test("geminates stay on the preceding note and its speech bubble", async () => {
+  const { lyricsToSyllables, planSong } = await import("../src/wasm/engine.ts");
+  const { sungWords, wordAt } = await import("../src/show/words.ts");
+  for (const [lyrics, labels] of [["おってさ", ["おっ", "て", "さ"]], ["くってさ", ["くっ", "て", "さ"]], ["クッテサ", ["クッ", "テ", "サ"]]] as const) {
+    const syl = lyricsToSyllables(lyrics);
+    // PianoRoll takes Syllable.text directly; mouth bubbles use the written syllable.
+    expect(syl.map((s) => s.text)).toEqual([...labels]);
+    const notes: [number, number][] = syl.map(() => [65, 1]);
+    const words = sungWords({ bpm: 100, lyrics, notes }, syl);
+    expect(words.shown).toEqual([...labels]);
+    expect(wordAt(words, 0.4)?.text).toBe(labels[0]);
+    // Keeping the written closure adds no note or articulatory gesture.
+    const options = { body: male, bpm: 100, t0: 0.3, vibrato: 0 };
+    const plan = (strip: boolean) => planSong(syl.map((syl) => ({ midi: 65, beats: 1, syl: strip ? { ...syl, text: syl.text.replace(/[っッ]/g, "") } : syl })), options);
+    expect(plan(false)).toEqual(plan(true));
+  }
+});
