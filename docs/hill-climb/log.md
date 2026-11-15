@@ -1680,3 +1680,46 @@ Written by GPT-6 in Codex.
   measurements, `evidence.md` and check logs. No output filter or gain change.
 
 Written by GPT-6 in Codex.
+
+### Japanese sung /b/: carry the pressure hold into finite songs
+
+- Hypothesis: the spoken D selection did not reach singing. `sing::consonants` discarded
+  the instruction and the shared planner explicitly ignored sung plans. The sung tongue/jaw
+  anticipates a high vowel under a full lip closure; male あび/あぶ reached 5.25x/5.68x
+  configured lung pressure in an original half-beat melody at 100 BPM.
+- Change: Japanese sung syllables request the same bounded higher/different-high-vowel hold,
+  including preceding lyric context across words and melisma. Song consonants preserve the
+  instruction; finite sung plans apply it with a 15 ms opening margin. The diagnostic lip
+  closure before /ɯ/ persisted about 12 ms after its scheduled release. A zero-margin trial
+  left male あぶ at 2.11x; 15 ms brought it to 0.78x. Speech timing and the accepted D
+  selection, vowel beats, lips, source, consonant lengths and calibrated tables stay put.
+- Result: diagnostic male ばび pressure 5.25x -> 0.79x, 45 -> 45 sampled ms of closure,
+  release peak relative to the vowel +6.7 -> +2.8 dB. Some normalized peaks rise (female
+  /bi/); this repairs pressure and reduces its noise source, not every token's output peak.
+  Keep べぼ's original overlapping /o/ gesture; pressure and closure cannot establish
+  phoneme identity. The owner accepted the new sung comparison as improved and heard ぼ;
+  they also reported no longer noticing the problem after reloading the latest app. This
+  confirms the supplied examples, not every sung context or voice.
+- Regression: the new song reproduction fails before the fix (male 70 BPM /bi/: 5.22x).
+  The six bilabial tests preserve the speech guards and compare songs at 3 bodies x
+  70/100/160/240 BPM: all 120 releases stay below 2x (maximum 1.812x), without losing closure
+  or the voiced vowel. Segment grids, lips, source and べぼ's incoming vowel are guarded.
+  The rebuilt WASM test covers separate lyric words and a preceding melisma.
+- Scope: finite planned songs only. Open-ended live keyboard plans keep their old behavior;
+  their separately tagged preceding vowel needs a different treatment. No global model,
+  output EQ/gain, noise gain, judge, ASR/TSP/CSD or dataset-specific change.
+- Evidence: ignored `out/japanese-sung-b/` contains before/after male/female same-gain WAVs,
+  focused べぼ crops, all three bodies' plans/traces, zero/15 ms trials, diagnostic source,
+  physical measurements and check logs. Rendered examples use the normal song pressure 9,
+  tension .55, 35-cent vibrato; initial source F0 is 112/205/250 Hz before the note gestures.
+- Validation: both full golden-bless runs passed (281 Rust, 2 existing ignores; no golden
+  changes). `bun run test --timeout 30000`: 281 Rust / 110 Bun, 1144 assertions. After
+  adding the squeezed 240 BPM cases, all six bilabial tests passed again. The final-note
+  check respects its existing breath reserve (87.5 ms in a 125 ms note); an already-low
+  child /bi/ pressure must improve, with the halving guard for excursions above 2x.
+  Typecheck, production build and desktop/mobile E2E passed, console errors none; preview
+  stopped. Previous/current release bench back-to-back: os=2 30.4 -> 29.3%, os=1 13.4 ->
+  13.9% of one core (no measured slowdown at the normal os=2 setting; figures are noisy).
+  No phone, ASR/TSP/CSD or live-keyboard sound tuning was checked in this change.
+
+Written by GPT-6 in Codex.

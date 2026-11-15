@@ -89,6 +89,8 @@ and the CLI) under a React UI. See the README.
   `bun test tests/language.test.ts`; keep lip timing, tongue/jaw timing and output level distinct.
   Include ばびぶべぼ's final べぼ: a quieter release can still be heard as ど. Preserve its
   vowel transition; the physical pressure guard alone cannot establish phoneme identity.
+  Planned songs need their own closure margin; check the sung 3-body/4-tempo reproduction
+  in that test while keeping vowel beats, lip timing and open-ended live notes unchanged.
 - **Nothing copyrighted goes in git.** `public/shows/` is gitignored; never ship CSD audio or
   anything derived from it.
 - **Voice tuning follows `docs/hill-climb/README.md`** and never edits its judges.

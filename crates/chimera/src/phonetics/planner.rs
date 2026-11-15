@@ -303,12 +303,17 @@ fn plan_utterance_bounded(input: &[Segment], o: &PlanOptions, pause: Option<f64>
         let r_out = js_max(0.03, 0.4 * (next - times[i].t1)) + 0.01;
         let vowel = segs[i].vowel.as_ref().unwrap();
         let mut g = Gesture::new(times[i].t0, times[i].t1, r_in, r_out, 1.0, artic_targets(vowel)).label(segs[i].ipa);
-        let deferred = |c: usize| o.sung != Some(true) && o.open_end != Some(true)
+        let deferred = |c: usize| o.open_end != Some(true)
             && segs[c].vowel_transition == Some(VowelTransition::AfterRelease)
             && segs[c].def.is_some_and(|d| d.manner == Manner::Stop && d.voicing == Voicing::Voiced);
         let after = n > 0 && v_idx[n - 1] + 2 == i && deferred(i - 1);
         let before = n + 1 < v_idx.len() && v_idx[n + 1] == i + 2 && deferred(i + 1);
         if after || before {
+            // Sung stops keep their full closure, unlike rate-shortened speech. The lip
+            // articulation can still seal for ~12 ms past its scheduled release; give it
+            // 15 ms to open before moving the enclosed tongue/jaw. The vowel's beat,
+            // source, lips and segment durations stay put.
+            let release_lag = if o.sung == Some(true) { 0.015 } else { 0.0 };
             // The closed mouth must not be pumped by its next vowel. Keep its old body
             // posture until release, but leave the lips' anticipation and timing intact.
             let (mut lips, mut body) = (Targets::default(), Targets::default());
@@ -319,9 +324,9 @@ fn plan_utterance_bounded(input: &[Segment], o: &PlanOptions, pause: Option<f64>
             g.targets = lips;
             gestures.push(g);
             g.targets = body;
-            if after { g.ramp_in = 0.0; }
+            if after { g.t0 += release_lag; g.ramp_in = 0.0; }
             if before {
-                g.t1 = next;
+                g.t1 = next + release_lag;
                 // A short overlap keeps the old posture active at the exact boundary, when
                 // a zero-ramp incoming gesture still has zero weight. Articulators smooth it.
                 g.ramp_out = 0.004;

@@ -31,7 +31,7 @@ fn cdur(ipa: &str, body: BodyMix, k: f64) -> f64 {
 /// nasal codas); otherwise the phoneme's spoken length times `k`. Either is squeezed when a note is
 /// too short for it.
 fn consonants(segs: &[Segment], body: BodyMix, k: f64) -> Vec<Segment> {
-    segs.iter().map(|c| Segment { ipa: c.ipa.clone(), dur: Some(c.dur.unwrap_or_else(|| cdur(&c.ipa, body, k))), aspirated: c.aspirated, vot: c.vot, palatalized: c.palatalized, breathy: c.breathy, release_abduction: c.release_abduction, ..Default::default() }).collect()
+    segs.iter().map(|c| Segment { ipa: c.ipa.clone(), dur: Some(c.dur.unwrap_or_else(|| cdur(&c.ipa, body, k))), aspirated: c.aspirated, vot: c.vot, palatalized: c.palatalized, breathy: c.breathy, release_abduction: c.release_abduction, vowel_transition: c.vowel_transition, ..Default::default() }).collect()
 }
 
 /// A sung vowel (or one half of a diphthong) at the note's pitch, with the sound marks of the

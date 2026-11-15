@@ -45,8 +45,17 @@ struct Evidence {
 }
 
 fn evidence(plan: &Plan, body: BodyMix, f0: f64) -> Vec<Evidence> {
+    evidence_with_source(plan, body, f0, false)
+}
+
+fn evidence_with_source(plan: &Plan, body: BodyMix, f0: f64, sung: bool) -> Vec<Evidence> {
     let mut v = HumanVoice::new(48000.0, body.body(), 2);
-    v.set_source(&SourcePatch::f0(f0));
+    v.set_source(&SourcePatch {
+        f0: Some(f0),
+        pressure: Some(if sung { 9.0 } else { 8.0 }),
+        tension: sung.then_some(0.55),
+        ..Default::default()
+    });
     v.schedule(&plan.gestures);
     let mut samples = vec![0.0; ((plan.end + 0.1) * 48000.0) as usize];
     let mut rows = Vec::new();
@@ -88,7 +97,8 @@ fn evidence(plan: &Plan, body: BodyMix, f0: f64) -> Vec<Evidence> {
             let x = &samples
                 [((n.t0 + 0.5 * dur) * 48000.0) as usize..((n.t0 + 0.85 * dur) * 48000.0) as usize];
             Evidence {
-                pressure: r.iter().map(|r| r.1).fold(0.0, f64::max) / (8.0 * CM_H2O),
+                pressure: r.iter().map(|r| r.1).fold(0.0, f64::max)
+                    / ((if sung { 9.0 } else { 8.0 }) * CM_H2O),
                 closed_ms: r.iter().filter(|r| r.2 < 0.01).count(),
                 voice: vowel.iter().map(|r| r.3).sum::<f64>() / vowel.len() as f64,
                 rms: (x.iter().map(|s| (*s as f64).powi(2)).sum::<f64>() / x.len() as f64).sqrt(),
@@ -151,7 +161,7 @@ fn japanese_b_releases_without_pumping_the_closed_mouth() {
 }
 
 #[test]
-fn only_plain_intervocalic_spoken_b_requests_the_transition() {
+fn only_plain_intervocalic_b_requests_the_transition() {
     let p = input("ば あび しんぶん あっば あびゃ");
     let requests: Vec<_> = p
         .iter()
@@ -165,17 +175,17 @@ fn only_plain_intervocalic_spoken_b_requests_the_transition() {
         .collect();
     assert_eq!(requests.len(), 1, "only the /b/ of あび");
     assert_eq!(requests[0].ipa, "b");
-    for s in japanese::kana_to_syllables("あば あび あぶ", None)
+    let sung = japanese::kana_to_syllables("あばあびあぶべぼ", None);
+    let marked: Vec<_> = sung
         .iter()
-        .flat_map(|s| s.onset.iter().chain([&s.nucleus]).chain(&s.coda))
-    {
-        assert!(
-            serde_json::to_value(s)
-                .unwrap()
-                .get("vowelTransition")
-                .is_none()
-        );
-    }
+        .flat_map(|s| &s.onset)
+        .filter(|s| s.vowel_transition.is_some())
+        .collect();
+    assert_eq!(
+        marked.len(),
+        2,
+        "あび and あぶ only; keep べぼ's place cues"
+    );
     for s in tokenize_ipa("ababa") {
         assert!(
             serde_json::to_value(s)
@@ -321,21 +331,14 @@ fn a_transition_request_needs_vowels_on_both_sides_in_one_phrase() {
     let mut json = serde_json::to_value(&plain).unwrap();
     json[1]["vowelTransition"] = "afterRelease".into();
     let marked: Vec<Segment> = serde_json::from_value(json).unwrap();
-    for o in [
-        PlanOptions {
-            sung: Some(true),
-            ..Default::default()
-        },
-        PlanOptions {
-            open_end: Some(true),
-            ..Default::default()
-        },
-    ] {
-        assert_eq!(
-            serde_json::to_value(plan_utterance(&plain, &o)).unwrap(),
-            serde_json::to_value(plan_utterance(&marked, &o)).unwrap()
-        );
-    }
+    let o = PlanOptions {
+        open_end: Some(true),
+        ..Default::default()
+    };
+    assert_eq!(
+        serde_json::to_value(plan_utterance(&plain, &o)).unwrap(),
+        serde_json::to_value(plan_utterance(&marked, &o)).unwrap()
+    );
     // At the exact release, the incoming zero-ramp posture has zero activation. The old
     // posture must still have weight, rather than exposing the performer's neutral mouth.
     let plan = plan_utterance(&marked, &Default::default());
@@ -344,4 +347,107 @@ fn a_transition_request_needs_vowels_on_both_sides_in_one_phrase() {
         score.add(*g);
     }
     assert!(score.blend(ArticKey::TbY, plan.segments[2].t0).weight > 0.0);
+}
+
+#[test]
+fn sung_b_keeps_beats_lips_and_vowel_place_without_pumping_the_mouth() {
+    use chimera::phonetics::sing::{SongOptions, SungNote, midi_to_hz, plan_song};
+    for body in [BodyMix::MALE, BodyMix::FEMALE, BodyMix::CHILD] {
+        for bpm in [70.0, 100.0, 160.0, 240.0] {
+            let midi = if body == BodyMix::MALE { 48.0 } else { 60.0 };
+            let notes: Vec<_> = japanese::kana_to_syllables("ばびぶべぼあばあびあぶあべあぼ", None)
+                .into_iter()
+                .enumerate()
+                .map(|(i, syl)| SungNote {
+                    midi: midi + [0.0, 2.0, 4.0, 2.0, 0.0][i % 5],
+                    beats: 0.5,
+                    syl,
+                })
+                .collect();
+            let mut legacy = notes.clone();
+            for n in &mut legacy {
+                for c in &mut n.syl.onset {
+                    c.vowel_transition = None;
+                }
+            }
+            let o = SongOptions {
+                body,
+                bpm,
+                t0: 0.3,
+                vibrato: 35.0,
+            };
+            let before = plan_song(&legacy, &o);
+            let after = plan_song(&notes, &o);
+            assert_eq!(after.segments, before.segments);
+            assert_eq!(after.end, before.end);
+            for (i, v) in after
+                .segments
+                .iter()
+                .filter(|s| s.kind == "vowel")
+                .enumerate()
+            {
+                assert!((v.t0 - (0.3 + i as f64 * 30.0 / bpm)).abs() < 1e-8, "{v:?}");
+                // The last note reserves its existing breath tail; a 125 ms note then
+                // has 87.5 ms available. Internal notes still reserve the full 100 ms.
+                let minimum = if i + 1 == notes.len() {
+                    0.1f64.min(30.0 / bpm - 0.05f64.min(0.3 * 30.0 / bpm))
+                } else {
+                    0.1
+                };
+                assert!(v.t1 - v.t0 >= minimum - 1e-9);
+            }
+            let old = evidence_with_source(&before, body, midi_to_hz(midi), true);
+            let new = evidence_with_source(&after, body, midi_to_hz(midi), true);
+            for (i, (a, b)) in old.iter().zip(&new).enumerate() {
+                eprintln!("sung {body:?} bpm={bpm} b#{i}: {a:?} -> {b:?}");
+                assert!(b.pressure < 2.0, "{body:?} bpm={bpm} b#{i}: {b:?}");
+                assert!(
+                    b.closed_ms + 1 >= a.closed_ms,
+                    "lost lip closure: {a:?} -> {b:?}"
+                );
+                assert!(b.voice > 0.9 && b.rms > 0.001, "lost vowel: {b:?}");
+            }
+            // Halve the reported excessive /bi/ pressure. A squeezed child's stop is
+            // already below 2x before the repair; it still must improve, not hit half
+            // of an ordinary operating pressure.
+            assert!(new[1].pressure < old[1].pressure);
+            if old[1].pressure > 2.0 {
+                assert!(new[1].pressure < old[1].pressure * 0.5);
+            }
+            // Lips, pitch, breath and all consonant gestures retain their original schedule.
+            let keep = |p: &Plan| {
+                p.gestures
+                    .iter()
+                    .filter_map(|g| {
+                        let mut g = *g;
+                        for k in ArticKey::ALL {
+                            if !matches!(
+                                k,
+                                ArticKey::LipAp | ArticKey::LipProt | ArticKey::LipWidth
+                            ) {
+                                g.targets.0[k.index()] = f64::NAN;
+                            }
+                        }
+                        g.targets
+                            .0
+                            .iter()
+                            .any(|x| x.is_finite())
+                            .then(|| serde_json::to_value(g).unwrap())
+                    })
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(keep(&after), keep(&before));
+            // /e b o/ must retain the complete vowel gesture, including anticipation.
+            let bo = &after.segments[9];
+            assert_eq!(bo.ipa, "o");
+            let incoming = |p: &Plan| {
+                p.gestures
+                    .iter()
+                    .filter(|g| g.label_str() == "o" && (g.t0 - bo.t0).abs() < 1e-8)
+                    .map(|g| serde_json::to_value(g).unwrap())
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(incoming(&after), incoming(&before));
+        }
+    }
 }

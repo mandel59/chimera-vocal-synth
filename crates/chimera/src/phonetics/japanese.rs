@@ -360,6 +360,16 @@ fn syllables(word: &str, prev: Option<&Syllable>, sung: bool) -> Vec<Syllable> {
         }
     }
     if sung {
+        // Carry the same bounded pressure workaround as speech into connected notes.
+        // The planner checks that there really is an adjacent vowel (no rest or coda).
+        for k in 0..out.len() {
+            let before = if k == 0 { prev } else { out.get(k - 1) };
+            let hold = before.is_some_and(|p| p.coda.is_empty()
+                && needs_vowel_hold(&p.nucleus.ipa, &out[k].nucleus.ipa));
+            if hold && out[k].onset.len() == 1 && out[k].onset[0].ipa == "b" {
+                out[k].onset[0].vowel_transition = Some(VowelTransition::AfterRelease);
+            }
+        }
         for s in &mut out {
             // A 50 ms vowel can be entirely covered by stop release and the following
             // fricative's anticipatory glottal opening. Reserve an audible voiced interval

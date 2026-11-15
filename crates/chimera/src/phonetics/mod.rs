@@ -28,11 +28,12 @@ pub enum ReleaseTiming {
     AfterBreath,
 }
 
-/// When the body posture changes between vowels around a voiced stop in finite speech.
+/// When the body posture changes between vowels around a voiced stop in a finite phrase.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum VowelTransition {
-    /// Retain the preceding tongue/jaw posture until planned release; lips still coarticulate.
+    /// Retain the preceding tongue/jaw posture until release (with a sung opening margin);
+    /// lips still coarticulate. Open-ended live notes do not apply this instruction.
     AfterRelease,
 }
 

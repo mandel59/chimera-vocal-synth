@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { initEngine } from "./harness.ts";
 
 await initEngine();
-const { EnglishG2P, textToPhrases, lyricsToSyllables, planPhrases } = await import("../src/wasm/engine.ts");
+const { EnglishG2P, textToPhrases, lyricsToSyllables, planPhrases, planSong } = await import("../src/wasm/engine.ts");
 const { call } = await import("../src/wasm/chimera.ts");
 
 describe("language entry over WASM", () => {
@@ -100,7 +100,28 @@ test("Japanese b keeps its requested vowel-body timing through the WASM facade",
   const body = actual.gestures.find((g) => g.label === "i" && g.targets.tbY !== undefined)!;
   expect(body.rampIn).toBe(0);
   expect(before.gestures.find((g) => g.label === "i")!.rampIn).toBeGreaterThan(0);
-  expect(lyricsToSyllables("あび", "ja").flatMap((s) => s.onset).every((s) => s.vowelTransition === undefined)).toBe(true);
+  expect(lyricsToSyllables("あび", "ja")[1].onset[0].vowelTransition).toBe("afterRelease");
+});
+
+test("Japanese sung b carries its pressure guard across words and melisma without moving beats", () => {
+  const syls = lyricsToSyllables("あ ー び ぶ べ ぼ", "ja");
+  expect(syls.flatMap((s) => s.onset).map((s) => s.vowelTransition)).toEqual([
+    "afterRelease", "afterRelease", undefined, undefined,
+  ]);
+  const notes = syls.map((syl) => ({ syl, midi: 60, beats: 0.5 }));
+  const options = { body: { female: 0, child: 0 }, bpm: 100, t0: 0.3, vibrato: 35 };
+  const actual = planSong(notes, options);
+  const before = planSong(notes.map((n) => ({ ...n, syl: { ...n.syl, onset: n.syl.onset.map(({ vowelTransition, ...s }) => s) } })), options);
+  expect(actual.segments).toEqual(before.segments);
+  const vi = actual.segments.find((s) => s.ipa === "i")!;
+  const body = actual.gestures.find((g) => g.label === "i" && g.targets.tbY !== undefined)!;
+  expect(body.t0).toBeCloseTo(vi.t0 + 0.015, 8);
+  expect(body.rampIn).toBe(0);
+  const vo = actual.segments[actual.segments.length - 1];
+  const bo = actual.gestures.find((g) => g.label === "o" && g.t0 === vo.t0)!;
+  expect(bo.targets.tbY).toBeDefined();
+  expect(bo.targets.lipAp).toBeDefined();
+  expect(bo.rampIn).toBeGreaterThan(0);
 });
 
 test("Japanese be-bo keeps vowel overlap while bi-bu retains the pressure guard", () => {

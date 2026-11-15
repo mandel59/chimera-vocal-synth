@@ -77,15 +77,17 @@ Every front end writes the same thing, one sung syllable per sounding note:
 - `text` is what the lyrics panel and the piano roll show.
 - `wordEnd` and `phraseEnd` may be left out (false).
 
-For finite **speech**, a voiced stop between two vowels may request
+For finite speech or a planned song, a voiced stop between two vowels may request
 `"vowelTransition": "afterRelease"`: retain the preceding vowel's tongue/jaw posture through
 the stop, then move toward the next vowel at its planned release (not runtime detection of
-the physical lip opening). Lip gestures keep their ordinary timing. Japanese
+the physical lip opening). Sung phrases add a 15 ms opening margin because the model's
+full-length sung lip closure can persist after the scheduled release. Lip gestures,
+segment boundaries and vowel beats keep their ordinary timing. Japanese
 uses it for plain intervocalic /b/ in transitions to higher vowels and between different
 high vowels, to avoid compressing the model's sealed mouth. The other vowel transitions
 retain their overlap and place cues. This is a
 realization choice, not a claim that every speaker delays the transition. It is ignored at
-phrase edges, across consonant clusters, on non-stops, and in sung/open-ended plans. Unset,
+phrase edges, across consonant clusters, on non-stops, and in open-ended live plans. Unset,
 the usual vowel overlap is preserved.
 
 Any front end's output can be frozen to JSON, edited and sung with `"syllables"` instead of
