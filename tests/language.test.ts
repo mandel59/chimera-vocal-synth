@@ -102,3 +102,15 @@ test("Japanese b keeps its requested vowel-body timing through the WASM facade",
   expect(before.gestures.find((g) => g.label === "i")!.rampIn).toBeGreaterThan(0);
   expect(lyricsToSyllables("あび", "ja").flatMap((s) => s.onset).every((s) => s.vowelTransition === undefined)).toBe(true);
 });
+
+test("Japanese be-bo keeps vowel overlap while bi-bu retains the pressure guard", () => {
+  const phrases = textToPhrases("ばびぶべぼ", "ja");
+  expect(phrases[0].segments.filter((s) => s.ipa === "b").map((s) => s.vowelTransition)).toEqual([
+    undefined, "afterRelease", "afterRelease", undefined, undefined,
+  ]);
+  const plan = planPhrases(phrases, { body: { female: 0, child: 0 }, t0: 0.05 });
+  const vowel = plan.segments[plan.segments.length - 1];
+  const body = plan.gestures.find((g) => g.label === "o" && g.t0 === vowel.t0 && g.targets.tbY !== undefined)!;
+  expect(body.targets.lipAp).toBeDefined();
+  expect(body.rampIn).toBeGreaterThan(0);
+});

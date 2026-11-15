@@ -507,6 +507,22 @@ fn devoiced_morae(syls: &[(Syllable, Option<usize>, f64)], accented: &[bool]) ->
     out
 }
 
+/// Bound the model's pressure workaround to rising vowels and changes between high vowels.
+/// Keeping /e/ through /bo/'s release delays the place cues carried by the e-to-o transition.
+/// These are categories for a model approximation, not a Japanese coarticulation law.
+fn needs_vowel_hold(before: &str, after: &str) -> bool {
+    let height = |v| match v {
+        "a" => Some(0),
+        "e" | "o" => Some(1),
+        "i" | "ɯ" => Some(2),
+        _ => None,
+    };
+    match (height(before), height(after)) {
+        (Some(a), Some(b)) => b > a || (a == 2 && b == 2 && before != after),
+        _ => false,
+    }
+}
+
 fn phrase(words: &[String], delim: char) -> Option<Phrase> {
     // the phrase's morae, each with the index of the word it ends and its pitch
     let mut syls: Vec<(Syllable, Option<usize>, f64)> = Vec::new();
@@ -569,11 +585,11 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
                     .find(|d| d.ipa == c.ipa && d.manner == Manner::Affricate && d.voicing == Voicing::Voiced)
                     .map(|d| d.dur);
                 // Preparing a high vowel behind closed lips pumped the model's mouth to
-                // 3–5x lung pressure. Keep the preceding body posture through a plain /b/;
-                // its lips retain their normal closure and release. This is a model repair,
+                // 3–5x lung pressure. Hold it for narrowing transitions through a plain /b/;
+                // other vowel transitions retain their place cues. This is a model repair,
                 // not a rule that all Japanese speakers delay every /b/'s coarticulation.
                 let vowel_transition = (c.ipa == "b" && s.onset.len() == 1
-                    && segs.last().is_some_and(|s| matches!(s.ipa.as_str(), "a" | "i" | "ɯ" | "e" | "o")))
+                    && segs.last().is_some_and(|prev| needs_vowel_hold(&prev.ipa, &s.nucleus.ipa)))
                     .then_some(VowelTransition::AfterRelease);
                 segs.push(Segment { ipa: c.ipa.clone(), dur, stress: Some(0), release_abduction: c.release_abduction, vowel_transition, ..Default::default() });
             }

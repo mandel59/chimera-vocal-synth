@@ -87,6 +87,8 @@ and the CLI) under a React UI. See the README.
   vowel behind shut lips pumped the mouth to 3–5x lung pressure. Check
   `cargo test -p chimera --test bilabial_release` and, after rebuilding wasm,
   `bun test tests/language.test.ts`; keep lip timing, tongue/jaw timing and output level distinct.
+  Include ばびぶべぼ's final べぼ: a quieter release can still be heard as ど. Preserve its
+  vowel transition; the physical pressure guard alone cannot establish phoneme identity.
 - **Nothing copyrighted goes in git.** `public/shows/` is gitignored; never ship CSD audio or
   anything derived from it.
 - **Voice tuning follows `docs/hill-climb/README.md`** and never edits its judges.

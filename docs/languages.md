@@ -71,12 +71,16 @@ English and typed IPA keep their existing pitch timing. `tests/vowel_sequences.r
 the continuous vowels and unequal mora lengths. Native-speaker listening is still needed
 to judge the phrase's naturalness; word/phrase boundary modelling remains approximate.
 
-Plain spoken /b/ between vowels requests `vowelTransition: "afterRelease"`. The planner
+Plain spoken /b/ between vowels requests `vowelTransition: "afterRelease"` when the
+vowel rises in height or changes between the two high vowels (i/ɯ). Mid-to-mid, lowering
+and identical-vowel transitions keep their usual overlap: delaying e-to-o also changed
+the place cues of the final ぼ in ばびぶべぼ. The planner
 retains the preceding tongue/jaw posture through that closure and prepares the new one
 after release, while the lip gestures keep their original anticipation, closure and release.
 The model otherwise squeezed the sealed mouth as it prepared a high vowel: male /bi/ and
 /bɯ/ reached 3–5x lung pressure and made a loud pop. This is a bounded model workaround,
-not a categorical rule about Japanese speakers' coarticulation. Phrase-initial /b/, nasal/geminate
+not a categorical rule about Japanese speakers' coarticulation. The height categories bound
+the workaround rather than predict each body's actual volume change. Phrase-initial /b/, nasal/geminate
 contexts, /bj/, English, typed IPA and singing keep their existing defaults. Segment times,
 pitch, breathing, noise gains and calibrated vowels are retained. `tests/bilabial_release.rs`
 guards pressure, closure and following-vowel voicing; perceptual quality needs listening.

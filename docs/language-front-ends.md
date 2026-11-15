@@ -81,7 +81,9 @@ For finite **speech**, a voiced stop between two vowels may request
 `"vowelTransition": "afterRelease"`: retain the preceding vowel's tongue/jaw posture through
 the stop, then move toward the next vowel at its planned release (not runtime detection of
 the physical lip opening). Lip gestures keep their ordinary timing. Japanese
-uses it for plain intervocalic /b/ to avoid compressing the model's sealed mouth; it is a
+uses it for plain intervocalic /b/ in transitions to higher vowels and between different
+high vowels, to avoid compressing the model's sealed mouth. The other vowel transitions
+retain their overlap and place cues. This is a
 realization choice, not a claim that every speaker delays the transition. It is ignored at
 phrase edges, across consonant clusters, on non-stops, and in sung/open-ended plans. Unset,
 the usual vowel overlap is preserved.

@@ -1642,3 +1642,41 @@ the owner decided by ear. The speed bench was not run.
   The opt-in timing is a bounded model workaround, not a universal rule of Japanese /b/.
 
 Written by GPT-6 in Codex.
+
+### Japanese /b/: preserve べぼ's vowel place cues (D accepted on the reported clip)
+
+- Listening: the owner preferred prototype B's burst strength but heard the final ぼ of
+  `ばびぶべぼ` as ど (not the separate あぼ). B was the unadopted trial that advanced lip
+  gestures 10 ms; its male lip opening was about 11 ms before the planned vowel. Geometry
+  still showed a lip closure, no internal oral closure: these guards cannot decide what
+  consonant a listener hears.
+- The current implementation at 7f76335e (C) also deferred e-to-o tongue/body movement
+  unnecessarily. Initial 30 ms LPC F2 estimates: male original 1139 Hz, B 1266, C 1427;
+  female original 1117, B 1260, C 1583. These are changing-window estimates, not an ASR or
+  perceptual verdict. Japanese listeners use cues around both sides of a closure; see
+  [Kashino (1990)](https://www.isca-archive.org/icslp_1990/kashino90_icslp.html), which does
+  not establish the cause of this particular confusion or validate our implementation.
+- Change (D): request the pressure workaround only for moves to higher vowels and between
+  different high vowels. Mid-to-mid, lowering and identical-vowel transitions retain their
+  ordinary overlap. The height categories bound this model workaround; they do not predict
+  every anatomical volume change or state a universal Japanese rule. Lip timing, pitch,
+  segment lengths, the shared planner and sound definitions are unchanged.
+- Result: e-to-o has its original articulation gesture again. The male lip opens at the
+  original 0.677 s (planned vowel 0.676667), early F2 about 1133 Hz; female 0.679 s and
+  1126 Hz. The owner heard the focused male D `べぼ` as ぼ, with acceptable burst strength.
+  This confirmation is for that clip, not every vowel and voice.
+- Regression: the e-to-o guard fails on C; the corresponding WASM guard also fails on the
+  prior build. The original pressure/closure/vowel tests keep their thresholds. Five Rust
+  tests pass for 3 bodies x 3 rates, plus a targeted rerun covering 9 additional intervocalic
+  contexts x 3 bodies. The new context check excludes phrase-initial /b/: child initial ぼ
+  still reaches about 2.17x lung pressure, an unchanged limit outside this repair.
+- Validation: goldens blessed twice (280 Rust passed, 2 existing ignores; no golden changes).
+  `bun run test --timeout 30000`: 280 Rust / 109 Bun, 1137 assertions. Typecheck and
+  production build passed. Previous/current release bench back-to-back: os=2 29.1 -> 29.1%,
+  os=1 13.5 -> 13.5% of one core. No ASR/TSP/CSD, phone or browser E2E rerun for this
+  frontend-only selection change; the previous implementation's E2E is recorded above.
+- Evidence: ignored `out/japanese-b-place/` holds the B/C/original/D comparison plans,
+  same-gain `べぼ` crops, refined full male/female CLI clips, geometry traces, probe source,
+  measurements, `evidence.md` and check logs. No output filter or gain change.
+
+Written by GPT-6 in Codex.

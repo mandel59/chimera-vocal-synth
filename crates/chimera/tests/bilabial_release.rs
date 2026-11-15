@@ -152,7 +152,7 @@ fn japanese_b_releases_without_pumping_the_closed_mouth() {
 
 #[test]
 fn only_plain_intervocalic_spoken_b_requests_the_transition() {
-    let p = input("ば あば しんぶん あっば あびゃ");
+    let p = input("ば あび しんぶん あっば あびゃ");
     let requests: Vec<_> = p
         .iter()
         .flat_map(|p| &p.segments)
@@ -163,7 +163,7 @@ fn only_plain_intervocalic_spoken_b_requests_the_transition() {
                 .is_some()
         })
         .collect();
-    assert_eq!(requests.len(), 1, "only the /b/ of あば");
+    assert_eq!(requests.len(), 1, "only the /b/ of あび");
     assert_eq!(requests[0].ipa, "b");
     for s in japanese::kana_to_syllables("あば あび あぶ", None)
         .iter()
@@ -183,6 +183,84 @@ fn only_plain_intervocalic_spoken_b_requests_the_transition() {
                 .get("vowelTransition")
                 .is_none()
         );
+    }
+}
+
+#[test]
+fn the_ebo_transition_keeps_its_original_vowel_place_cues() {
+    // Listening: candidate B's final ぼ of ばびぶべぼ was heard as ど. Do not shift
+    // its lip release, or unnecessarily defer its e-to-o tongue-body transition.
+    for text in ["ばびぶべぼ。", "べぼ。", "ぼべ。", "あば。", "びび。"] {
+        let marked = input(text);
+        if text != "ばびぶべぼ。" {
+            assert_eq!(
+                serde_json::to_value(&marked).unwrap(),
+                serde_json::to_value(unmarked(&marked)).unwrap(),
+                "unneeded hold: {text}"
+            );
+        }
+        let plan = plan_phrases(&marked, &Default::default());
+        let old = plan_phrases(&unmarked(&marked), &Default::default());
+        let at = plan
+            .segments
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(i, s)| s.kind == "vowel" && *i > 0 && plan.segments[*i - 1].ipa == "b")
+            .unwrap()
+            .1;
+        let gesture = |p: &Plan| {
+            p.gestures
+                .iter()
+                .filter(|g| g.label_str() == at.ipa && (g.t0 - at.t0).abs() < 1e-8)
+                .map(|g| serde_json::to_value(g).unwrap())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            gesture(&plan),
+            gesture(&old),
+            "altered incoming vowel: {text}"
+        );
+    }
+    // Keep the pressure repair for rising vowels and transitions between high vowels.
+    for text in [
+        "あび", "あぶ", "あべ", "あぼ", "えび", "おぶ", "びぶ", "ぶび",
+    ] {
+        assert!(
+            input(text)[0]
+                .segments
+                .iter()
+                .any(|s| serde_json::to_value(s)
+                    .unwrap()
+                    .get("vowelTransition")
+                    .is_some()),
+            "{text}"
+        );
+    }
+    // Removing a hold must not bring back the pressure artifact in other vowel contexts.
+    for text in [
+        "べぼ", "ぼべ", "あば", "びび", "ぶぶ", "べべ", "ぼぼ", "びべ", "ぶぼ",
+    ] {
+        for (body, f0) in [
+            (BodyMix::MALE, 112.0),
+            (BodyMix::FEMALE, 205.0),
+            (BodyMix::CHILD, 250.0),
+        ] {
+            let p = plan_phrases(
+                &input(text),
+                &PlanOptions {
+                    body,
+                    f0: Some(f0),
+                    ..Default::default()
+                },
+            );
+            // The last /b/ is intervocalic; a phrase-initial /b/ is outside this repair.
+            let e = evidence(&p, body, f0).pop().unwrap();
+            assert!(
+                e.pressure < 2.0,
+                "restored overpressure: {text} {body:?} {e:?}"
+            );
+        }
     }
 }
 
