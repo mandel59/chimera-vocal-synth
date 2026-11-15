@@ -73,6 +73,9 @@ and the CLI) under a React UI. See the README.
   with `cargo test -p chimera --test sung_vowel`; segment length alone missed a silent と.
 - **Demo breath marks follow rests, not grammatical boundaries.** A false break bypasses
   fitting and can close over the previous vowel. Check `cargo test -p chimera --test song_phrasing`.
+- **A phrase's breath-out must end before the next sung onset.** A stale exhale unvoiced
+  Sakura's initial /m/, heard as んぴ or んうぃ. Check `cargo test -p chimera --test sung_nasal_onset`
+  and, after rebuilding wasm, the Sakura case in `bun test tests/singing-live.test.ts`.
 - **Japanese coda marks stay in the displayed syllable.** Check `bun test tests/words.test.ts`
   after rebuilding wasm; E2E checks っ in both the pitch roll and mouth bubbles.
 - **Common-Japanese spelling does not split じ/ぢ or ず/づ.** Select contextual onsets before

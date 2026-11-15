@@ -481,6 +481,20 @@ describe("Sing mode, live keys", () => {
     sing().setLanguage(undefined);
   });
 
+  test("Sakura's two phrase-initial mi keep their breath without the previous breath-out", async () => {
+    voice = new WasmVoice(FS);
+    await playDemo("さくらさくら", MALE, () => Promise.resolve());
+    const gs = gesturesOf();
+    const ms = gs.filter((g) => g.label === "m");
+    expect(ms).toHaveLength(4);
+    for (const m of [ms[0], ms[3]]) {
+      // At the held lip closure, the old phrase must not still open the folds.
+      expect(gs.some((g) => g.label === "exhale" && activation(g, m.t1) > 0)).toBe(false);
+      expect(gs.some((g) => g.targets.breath !== undefined && activation(g, m.t1) > 0.9)).toBe(true);
+    }
+    stopSinging();
+  });
+
   test("a quick next note drops the last one's breath-out; leaving Sing cancels a pending ending", () => {
     voice = new WasmVoice(FS);
     useSing.getState().setVibrato(0);

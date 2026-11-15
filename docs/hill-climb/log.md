@@ -1723,3 +1723,51 @@ Written by GPT-6 in Codex.
   No phone, ASR/TSP/CSD or live-keyboard sound tuning was checked in this change.
 
 Written by GPT-6 in Codex.
+
+### Sung phrase handoff: keep Sakura's み voiced
+
+- Report: the み of みわたすかぎり and みにゆかん in さくらさくら sounded like んぴ or
+  んうぃ. Both are phrase-initial; the medial み in かすみ is different.
+- Diagnosis: the previous group's automatic `exhale` opens the folds under the next /m/.
+  At 76 BPM, the male first /m/ is 12.871579..12.931579 s, but the old exhale lasts until
+  12.971579 s. Lips close and the nasal port stays open (no simultaneous oral/nasal seal),
+  while the glottal voicing gate falls almost to zero. Changing /m/'s lip/velum geometry
+  would miss this stale-control cause. Read the original breath-onset experiment 10 and
+  retain its drive timing; the bug is composition across groups, not early breath drive.
+- Change: as `plan_song` appends a phrase, finish earlier exhale gestures by the next first
+  segment. Preserve the normal fade when it fits; omit an exhale whose full target/fade
+  no longer fits. This parallels live keys cancelling the previous ending before a quick
+  next note, but changes no live code. No new tuning constant, phoneme, source, noise gain,
+  output filter, beat shift or note-length change.
+- Result: full-demo male nasal closure is unchanged, 47 ms (みわたす) / 46 ms (みにゆかん),
+  but voiced closure rises from 0 to 47/46 sampled ms. Female 49/48 ms and child 50/50 ms
+  similarly go from unvoiced to voiced throughout their closed-lip nasal interval. The
+  excerpt's male 57 BPM nasal RMS rises .0040 -> .0779, with 0 -> 48 voiced ms. These are
+  model diagnostics; they do not alone establish that a listener hears a natural み.
+- Regression: two new Rust tests fail before the fix. They render both reported boundaries
+  at 3 bodies x 57/76/114 BPM, checking a closed-lip/open-nose voiced interval and vowel
+  beats. A structural guard checks Sakura and English Made of air plus the unchanged full
+  final fade. The real demo's WASM/UI scheduling test fails on the prior build, then passes
+  after rebuilding it. Full-demo segment timing, end and every non-exhale gesture compare
+  exactly with 65e86213 in all three bodies.
+- Compatibility: the shared composition repair also removes stale exhale overlap in English
+  sung phrases; it is not a Japanese-specific /m/ definition. The planning golden changes
+  in seven song plans, solely shortened/omitted intermediate exhales. All non-exhale
+  gestures, segments, timing and other fixture sections stay identical. Final exhales keep
+  their complete fade. Speech, single-phrase song plans and live keys are unchanged.
+- Scope: groups composed inside one `plan_song` call, as the original Sakura catalog/demo
+  routes do. Separate calls across explicit score rests still have no mutual lookahead;
+  an API/UI expansion for those is outside this reported case. No ASR/TSP/CSD run or judge
+  change; this is a control-lifetime repair, not a global sound-tuning batch.
+- Evidence: ignored `out/japanese-sung-m/` contains full-demo before/after plans, WAVs and
+  traces for all bodies, same-gain cropped comparisons, diagnostic source, measurements,
+  a handoff timing trial and check logs. The lip/velum timing hypotheses were rejected by
+  the trace; nasal20/nasal40 variants were not run or adopted. The owner heard the supplied
+  before/after comparisons as a natural み after the fix; this covers those clips.
+- Validation: both full golden-bless runs passed (283 Rust, 2 existing ignores), then
+  `bun run test --timeout 30000` passed: 283 Rust / 111 Bun, 1149 assertions. Typecheck and
+  production build passed. Previous/current release bench back-to-back: os=2 30.0 -> 28.7%,
+  os=1 13.5 -> 13.4% of one core; noisy figures, no measured slowdown. No browser E2E rerun
+  (UI/WASM API unchanged; the real demo's scheduling regression ran), phone or ASR/TSP/CSD.
+
+Written by GPT-6 in Codex.

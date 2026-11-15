@@ -13,7 +13,7 @@
 
 use super::inventory::phoneme;
 use crate::anatomy::human::BodyMix;
-use super::planner::{PlanOptions, diphthong_parts, plan_utterance};
+use super::planner::{EXHALE_LABEL, PlanOptions, diphthong_parts, plan_utterance};
 use super::{Intonation, Plan, PlannedSegment, Segment, Syllable};
 use crate::control::score::{ControlKey, Gesture, Targets};
 use crate::math::{js_max, js_min};
@@ -172,6 +172,19 @@ pub fn plan_song(notes: &[SungNote], o: &SongOptions) -> Plan {
         if !segs.is_empty() {
             // the planner lays segments out from t0 + 0.06: start so the first vowel lands on its beat
             let plan = plan_utterance(&segs, &PlanOptions { body: o.body, t0: times[i] - first_onset - 0.06, f0: Some(hz_of(i)), intonation: Some(Intonation::Flat), sung: Some(true), ..Default::default() });
+            // The previous group's breath-out must not abduct the folds under this
+            // group's onset (Sakura's phrase-initial /mi/ became almost unvoiced).
+            // Keep its normal fade if it fits; omit it if there is no room to fade
+            // before the next segment. Neither the notes nor their breath drive moves.
+            if let Some(first) = plan.segments.first() {
+                gestures.retain_mut(|g| {
+                    if g.label_str() != EXHALE_LABEL || g.end() <= first.t0 { return true; }
+                    let until = first.t0 - g.ramp_out;
+                    if until <= g.t0 { return false; }
+                    g.t1 = until;
+                    true
+                });
+            }
             gestures.extend_from_slice(&plan.gestures);
             segments.extend(plan.segments);
             for (a, b) in vowel_spans {
