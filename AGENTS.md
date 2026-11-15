@@ -83,6 +83,10 @@ and the CLI) under a React UI. See the README.
 - **Mora pitch needs time even inside continuous vowels.** Bound its transitions by both
   neighbouring morae; fixed 60 ms ramps blurred the accents of と＼ーおーお at faster rates.
   Check `cargo test -p chimera --test vowel_sequences`, including unequal mora lengths.
+- **A quieter Japanese /b/ must retain its lip closure and following vowel.** Preparing a high
+  vowel behind shut lips pumped the mouth to 3–5x lung pressure. Check
+  `cargo test -p chimera --test bilabial_release` and, after rebuilding wasm,
+  `bun test tests/language.test.ts`; keep lip timing, tongue/jaw timing and output level distinct.
 - **Nothing copyrighted goes in git.** `public/shows/` is gitignored; never ship CSD audio or
   anything derived from it.
 - **Voice tuning follows `docs/hill-climb/README.md`** and never edits its judges.

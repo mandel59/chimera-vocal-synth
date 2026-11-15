@@ -7,7 +7,7 @@
 
 use super::durations::{SegInfo, klatt_durations};
 use super::inventory::{Glottal, Manner, PhonemeDef, Voicing, phoneme};
-use super::{Intonation, Plan, PlannedSegment, ReleaseTiming, Segment};
+use super::{Intonation, Plan, PlannedSegment, ReleaseTiming, Segment, VowelTransition};
 use crate::anatomy::human::{ArticKey, ArticPatch, BodyMix, BodyName};
 use crate::control::score::{ControlKey, Gesture, Targets};
 use crate::math::{js_max, js_min, js_round, pow};
@@ -183,6 +183,7 @@ struct Seg<'a> {
     breathy: Option<bool>,
     release_abduction: Option<f64>,
     devoiced: Option<&'a str>,
+    vowel_transition: Option<VowelTransition>,
 }
 
 /// glottal abduction of breathy voice: /ɦ/'s, a gap the folds still vibrate across
@@ -252,10 +253,10 @@ fn plan_utterance_bounded(input: &[Segment], o: &PlanOptions, pause: Option<f64>
             let base = durs[si];
             for (i, p) in parts.iter().enumerate() {
                 let dur = if parts.len() > 1 { base * (if i == 0 { 0.55 } else { 0.45 }) } else { base };
-                segs.push(Seg { ipa: p, dur: Some(dur), stress: s.stress, f0: s.f0, pitch: s.pitch, release_timing: s.release_timing, def: None, vowel: None, glide_from: i > 0, aspirated: None, vot: None, nasalized: s.nasalized, palatalized: None, breathy: s.breathy, release_abduction: None, devoiced: None });
+                segs.push(Seg { ipa: p, dur: Some(dur), stress: s.stress, f0: s.f0, pitch: s.pitch, release_timing: s.release_timing, def: None, vowel: None, glide_from: i > 0, aspirated: None, vot: None, nasalized: s.nasalized, palatalized: None, breathy: s.breathy, release_abduction: None, devoiced: None, vowel_transition: None });
             }
         } else {
-            segs.push(Seg { ipa: &s.ipa, dur: Some(durs[si]), stress: s.stress, f0: s.f0, pitch: s.pitch, release_timing: s.release_timing, def: None, vowel: None, glide_from: false, aspirated: s.aspirated, vot: s.vot, nasalized: s.nasalized, palatalized: s.palatalized, breathy: s.breathy, release_abduction: s.release_abduction, devoiced: s.devoiced.as_deref() });
+            segs.push(Seg { ipa: &s.ipa, dur: Some(durs[si]), stress: s.stress, f0: s.f0, pitch: s.pitch, release_timing: s.release_timing, def: None, vowel: None, glide_from: false, aspirated: s.aspirated, vot: s.vot, nasalized: s.nasalized, palatalized: s.palatalized, breathy: s.breathy, release_abduction: s.release_abduction, devoiced: s.devoiced.as_deref(), vowel_transition: s.vowel_transition });
         }
     }
     for s in segs.iter_mut() {
@@ -300,7 +301,33 @@ fn plan_utterance_bounded(input: &[Segment], o: &PlanOptions, pause: Option<f64>
         // the next vowel at the release and the transitions carry the consonant's place
         let r_in = js_max(0.03, 0.75 * (times[i].t0 - prev)) + 0.01;
         let r_out = js_max(0.03, 0.4 * (next - times[i].t1)) + 0.01;
-        gestures.push(Gesture::new(times[i].t0, times[i].t1, r_in, r_out, 1.0, artic_targets(segs[i].vowel.as_ref().unwrap())).label(segs[i].ipa));
+        let vowel = segs[i].vowel.as_ref().unwrap();
+        let mut g = Gesture::new(times[i].t0, times[i].t1, r_in, r_out, 1.0, artic_targets(vowel)).label(segs[i].ipa);
+        let deferred = |c: usize| o.sung != Some(true) && o.open_end != Some(true)
+            && segs[c].vowel_transition == Some(VowelTransition::AfterRelease)
+            && segs[c].def.is_some_and(|d| d.manner == Manner::Stop && d.voicing == Voicing::Voiced);
+        let after = n > 0 && v_idx[n - 1] + 2 == i && deferred(i - 1);
+        let before = n + 1 < v_idx.len() && v_idx[n + 1] == i + 2 && deferred(i + 1);
+        if after || before {
+            // The closed mouth must not be pumped by its next vowel. Keep its old body
+            // posture until release, but leave the lips' anticipation and timing intact.
+            let (mut lips, mut body) = (Targets::default(), Targets::default());
+            for (k, x) in vowel.iter() {
+                if matches!(k, ArticKey::LipAp | ArticKey::LipProt | ArticKey::LipWidth) { lips.set(k, x); }
+                else { body.set(k, x); }
+            }
+            g.targets = lips;
+            gestures.push(g);
+            g.targets = body;
+            if after { g.ramp_in = 0.0; }
+            if before {
+                g.t1 = next;
+                // A short overlap keeps the old posture active at the exact boundary, when
+                // a zero-ramp incoming gesture still has zero weight. Articulators smooth it.
+                g.ramp_out = 0.004;
+            }
+        }
+        gestures.push(g);
     }
     // utterance-initial/final consonants: lend them the nearest vowel's body posture
     let mut final_nasal_gestures = Vec::new();

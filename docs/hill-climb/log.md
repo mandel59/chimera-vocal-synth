@@ -1601,3 +1601,44 @@ the owner decided by ear. The speed bench was not run.
 - Validation: goldens blessed twice (none changed), `bun run test` (224 Rust, 2 ignored; 69
   Bun), typecheck, build, e2e against the preview (exit 0). Bench os=2 27.2 %, os=1 12.4 % of
   one core (26.3 / 12.0 before; the planner alone changed, on Japanese speech only).
+
+### Japanese /b/: avoid pumping a closed mouth with the next vowel (listening pending)
+
+- Report: the fork's owner heard overly strong bursts/noise in バ行. Baseline: 93980071.
+  The diagnostic reading was `ば び ぶ べ ぼ。あば あび あぶ あべ あぼ。かばん。`.
+- Cause: preparing the following vowel behind shut lips squeezed the mouth. In the male
+  voice, the /b/ of あび reached 3.53x configured lung pressure, あぶ 4.64x. Switching off
+  turbulence left the /bi/ pop near +6 dB over the following vowel; switching off the
+  moving-wall volume source removed the overpressure. Neither switch is changed in the fix.
+- Trials in the diagnostic only: rescaling vowel anticipation increased pressure; moving
+  lip gestures 10 ms earlier lowered /bi/ but left /abu/ at 2.66x and moved the stop's timing.
+  Deferring every vowel target also weakened fast lip closures. These are not retained.
+- Change: finite speech can request `Segment.vowel_transition = AfterRelease` on a voiced
+  stop between two vowels. Hold the preceding non-lip vowel posture to the planned release,
+  then move toward the next one. Lip gestures retain their timing and targets. A 4 ms
+  pre-rate release overlap prevents zero posture weight at the exact boundary; the
+  articulators still smooth the transition. This is scheduled timing, not detection of
+  the physical lip opening. Japanese speech requests it for plain intervocalic /b/ only.
+  Phrase-initial /b/, nasal/geminate contexts and /bj/ keep their defaults, as do English,
+  unmarked IPA and singing. No common sound, calibrated table, source or judge was tuned.
+- Result: male あび pressure 3.53x -> 0.59x, release +6.1 -> +1.0 dB over the following
+  vowel's central peak; closed time 12 -> 12 sampled ms. あぶ: 4.64x -> 0.65x, closure
+  21 -> 21 ms. The closure, lip/breath/F0 gestures and segment times are guarded separately
+  from level. Not every normalized peak falls (female あび -0.9 -> +1.0 dB); this is a repair
+  of excessive pressure, not a listening verdict or an amplitude reduction on every /b/.
+- Regression: the physical reproduction fails before the fix. Four Rust tests cover the
+  request's context, rendered pressure/closure/vowel voicing in 3 bodies x 3 rates,
+  lip/breath/pitch compatibility, unsupported contexts, singing/live opt-out and the exact
+  release boundary. A WASM test checks the front-end instruction reaches the planner.
+- Validation: both full golden-bless runs passed (279 Rust, 2 existing ignores), with no
+  golden changes. `bun run test --timeout 30000`: 279 Rust / 108 Bun, 1134 assertions.
+  Typecheck, production build and desktop/mobile E2E passed, console errors none. Previous
+  commit/current release bench back-to-back: os=2 33.1 -> 31.1%, os=1 16.0 -> 14.2% of one
+  core; noisy figures, no measured slowdown. Preview stopped after the check.
+- Evidence: ignored `out/japanese-b/` holds before/after male/female WAVs at the same gain,
+  plans, pressure/lip/voicing traces, diagnostic source, `evidence.md` and check logs.
+- Remaining: native-speaker listening, ASR/TSP/CSD and a phone were not checked. Some very
+  short /b/ closures are already incomplete at 1.5x; the fix does not claim to solve them.
+  The opt-in timing is a bounded model workaround, not a universal rule of Japanese /b/.
+
+Written by GPT-6 in Codex.

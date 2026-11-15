@@ -28,6 +28,14 @@ pub enum ReleaseTiming {
     AfterBreath,
 }
 
+/// When the body posture changes between vowels around a voiced stop in finite speech.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum VowelTransition {
+    /// Retain the preceding tongue/jaw posture until planned release; lips still coarticulate.
+    AfterRelease,
+}
+
 /// One phoneme in an utterance.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -82,6 +90,10 @@ pub struct Segment {
     /// Finite speech only; currently supported for a phrase-final closed nasal.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub release_timing: Option<ReleaseTiming>,
+    /// Between vowels, defer their tongue/jaw transition until this voiced stop's planned release.
+    /// None: the usual overlapping vowel gestures. Lip gestures and segment times are retained.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vowel_transition: Option<VowelTransition>,
 }
 
 impl Segment {

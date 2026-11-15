@@ -173,6 +173,8 @@ export interface Segment {
   pitch?: number;
   /** Keep a finite speech-final nasal through the scheduled breath tail. */
   releaseTiming?: "afterBreath";
+  /** Between vowels in finite speech, move the tongue/jaw after this voiced stop's release; lips keep their timing. */
+  vowelTransition?: "afterRelease";
 }
 
 /** What the engine will not say as written in a piece of IPA text (see `skippedIpa`). */

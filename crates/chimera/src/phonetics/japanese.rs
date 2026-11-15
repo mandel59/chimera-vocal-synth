@@ -26,7 +26,7 @@
 use super::Phrase;
 use super::inventory::{self, Manner, Voicing};
 use crate::math::js_max;
-use super::{Intonation, ReleaseTiming, Segment, Syllable};
+use super::{Intonation, ReleaseTiming, Segment, Syllable, VowelTransition};
 
 /// A kana character, or ー, that starts or continues a run of Japanese lyrics.
 pub fn is_kana(c: char) -> bool {
@@ -568,7 +568,14 @@ fn phrase(words: &[String], delim: char) -> Option<Phrase> {
                 let dur = inventory::consonants().iter()
                     .find(|d| d.ipa == c.ipa && d.manner == Manner::Affricate && d.voicing == Voicing::Voiced)
                     .map(|d| d.dur);
-                segs.push(Segment { ipa: c.ipa.clone(), dur, stress: Some(0), release_abduction: c.release_abduction, ..Default::default() });
+                // Preparing a high vowel behind closed lips pumped the model's mouth to
+                // 3–5x lung pressure. Keep the preceding body posture through a plain /b/;
+                // its lips retain their normal closure and release. This is a model repair,
+                // not a rule that all Japanese speakers delay every /b/'s coarticulation.
+                let vowel_transition = (c.ipa == "b" && s.onset.len() == 1
+                    && segs.last().is_some_and(|s| matches!(s.ipa.as_str(), "a" | "i" | "ɯ" | "e" | "o")))
+                    .then_some(VowelTransition::AfterRelease);
+                segs.push(Segment { ipa: c.ipa.clone(), dur, stress: Some(0), release_abduction: c.release_abduction, vowel_transition, ..Default::default() });
             }
             segs.push(Segment { ipa: s.nucleus.ipa.clone(), dur: Some(if vowel { MORA_VOWEL } else { MORA_N }), stress: Some(1), pitch: Some(*pitch), release_timing: s.nucleus.release_timing, devoiced: held.map(str::to_string), ..Default::default() });
             for c in &s.coda {

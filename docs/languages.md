@@ -71,6 +71,17 @@ English and typed IPA keep their existing pitch timing. `tests/vowel_sequences.r
 the continuous vowels and unequal mora lengths. Native-speaker listening is still needed
 to judge the phrase's naturalness; word/phrase boundary modelling remains approximate.
 
+Plain spoken /b/ between vowels requests `vowelTransition: "afterRelease"`. The planner
+retains the preceding tongue/jaw posture through that closure and prepares the new one
+after release, while the lip gestures keep their original anticipation, closure and release.
+The model otherwise squeezed the sealed mouth as it prepared a high vowel: male /bi/ and
+/bɯ/ reached 3–5x lung pressure and made a loud pop. This is a bounded model workaround,
+not a categorical rule about Japanese speakers' coarticulation. Phrase-initial /b/, nasal/geminate
+contexts, /bj/, English, typed IPA and singing keep their existing defaults. Segment times,
+pitch, breathing, noise gains and calibrated vowels are retained. `tests/bilabial_release.rs`
+guards pressure, closure and following-vowel voicing; perceptual quality needs listening.
+At 1.5x, some brief /b/ closures were already incomplete; this change does not solve them.
+
 `render::say` keeps its English signature for the unmodified TSP judge. CLI
 `render text` selects a language (`--lang en|ja`, or compatibility detection)
 and uses the same rendering body after any dictionary preparation. Its

@@ -88,3 +88,17 @@ test("Japanese voiced affricates keep their inherent duration before the phrase 
   expect(span.t1 - span.t0).toBeGreaterThan(0.05);
   expect(lyricsToSyllables("じ", "ja")[0].onset[0].dur).toBeUndefined();
 });
+
+test("Japanese b keeps its requested vowel-body timing through the WASM facade", () => {
+  const phrases = textToPhrases("あび", "ja");
+  expect(phrases[0].segments.find((s) => s.ipa === "b")!.vowelTransition).toBe("afterRelease");
+  const legacy = phrases.map((p) => ({ ...p, segments: p.segments.map(({ vowelTransition, ...s }) => s) }));
+  const actual = planPhrases(phrases, { body: { female: 0, child: 0 }, t0: 0.05 });
+  const before = planPhrases(legacy, { body: { female: 0, child: 0 }, t0: 0.05 });
+  expect(actual.segments).toEqual(before.segments);
+  expect(actual.end).toBe(before.end);
+  const body = actual.gestures.find((g) => g.label === "i" && g.targets.tbY !== undefined)!;
+  expect(body.rampIn).toBe(0);
+  expect(before.gestures.find((g) => g.label === "i")!.rampIn).toBeGreaterThan(0);
+  expect(lyricsToSyllables("あび", "ja").flatMap((s) => s.onset).every((s) => s.vowelTransition === undefined)).toBe(true);
+});
