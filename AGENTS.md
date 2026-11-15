@@ -80,6 +80,9 @@ and the CLI) under a React UI. See the README.
 - **Japanese voiced affricates must release before their vowel.** Preserve closure and vowel
   voicing across rates; check `cargo test -p chimera --test voiced_affricates`. English duration
   defaults shortened by the Japanese rate left the whole release almost closed.
+- **Mora pitch needs time even inside continuous vowels.** Bound its transitions by both
+  neighbouring morae; fixed 60 ms ramps blurred the accents of と＼ーおーお at faster rates.
+  Check `cargo test -p chimera --test vowel_sequences`, including unequal mora lengths.
 - **Nothing copyrighted goes in git.** `public/shows/` is gitignored; never ship CSD audio or
   anything derived from it.
 - **Voice tuning follows `docs/hill-climb/README.md`** and never edits its judges.

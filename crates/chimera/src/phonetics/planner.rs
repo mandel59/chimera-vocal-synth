@@ -531,7 +531,23 @@ fn plan_utterance_bounded(input: &[Segment], o: &PlanOptions, pause: Option<f64>
             }
         }
         let r = if has_f0 && sung { pitch_ramp(t1 - t0) } else { 0.06 };
-        gestures.push(Gesture::new(t0, if has_f0 { t1 } else { hold }, r, r, if has_f0 { 6.0 } else { 1.0 }, one(ControlKey::F0, target)).label("pitch"));
+        let mut pitch = Gesture::new(t0, if has_f0 { t1 } else { hold }, r, r, if has_f0 { 6.0 } else { 1.0 }, one(ControlKey::F0, target)).label("pitch");
+        if s.pitch.is_some() && !has_f0 {
+            // A front end's mora pitch needs its own interval, including inside a continuous
+            // vowel. Fixed 60 ms ramps mixed three short morae and blurred a low between highs.
+            // Leave at least the centre of this and either neighbour to its own target; the
+            // voice still glides between them. English and explicit-Hz notes keep their timing.
+            let own = js_min(r, 0.5 * (t1 - t0));
+            pitch.ramp_in = if n > 0 {
+                let prev = times[p_idx[n - 1]];
+                js_min(own, 0.5 * (prev.t1 - prev.t0))
+            } else { own };
+            pitch.ramp_out = if n + 1 < p_idx.len() {
+                let next = times[p_idx[n + 1]];
+                js_min(own, 0.5 * (next.t1 - next.t0))
+            } else { own };
+        }
+        gestures.push(pitch);
     }
     // sung: a consonant given its note's pitch holds it, so the pitch moves during an onset
     // consonant and has arrived when the vowel starts

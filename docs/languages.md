@@ -62,6 +62,15 @@ Upstream's fast-speech ramp shortening also applies at Japanese's internal rate 
 The physical guards retain the normal-speed closure minimum and scale it at faster rates
 in whole 1 ms telemetry bins; release opening and vowel voicing remain required.
 
+Relative mora-pitch transitions are bounded by half the duration of the mora and its
+neighbours. Fixed 60 ms ramps otherwise mix adjacent highs into a short low, including
+inside a continuous vowel (issue #15: `と＼ーおーお　おーお＼ー　あんうん`). This changes only
+the timing of `Segment.pitch` targets: mora lengths, articulation and breaths are retained.
+It neither inserts a stop at each vowel boundary nor merges the vowels; explicit-Hz singing,
+English and typed IPA keep their existing pitch timing. `tests/vowel_sequences.rs` checks
+the continuous vowels and unequal mora lengths. Native-speaker listening is still needed
+to judge the phrase's naturalness; word/phrase boundary modelling remains approximate.
+
 `render::say` keeps its English signature for the unmodified TSP judge. CLI
 `render text` selects a language (`--lang en|ja`, or compatibility detection)
 and uses the same rendering body after any dictionary preparation. Its
